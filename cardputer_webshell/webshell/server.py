@@ -4,8 +4,9 @@ import time
 import os
 import sys
 from .settings import SSID, PASSWORD
-from .utils import parse_request_line, parse_query
-from .routes import routes
+from .utils import parse_request_line, parse_query, http_response, recv_all
+from .routes import routes, STATIC_DIR
+from .handlers import stream_file
 
 def route_request(request: bytes):
     method, full_path = parse_request_line(request)
@@ -17,7 +18,16 @@ def route_request(request: bytes):
 
     handler = routes.get(key)
     if not handler:
-        # TODO check the file from the static directory
+        # Stream a file from the static directory
+        try:
+            fpath = STATIC_DIR.rstrip(b"/") + path
+            filepath = fpath.decode()
+
+            os.stat(filepath)
+            return stream_file(filepath)
+        except Exception as e:
+            return http_response(str(e).encode(), status=b"500 Internal Server Error")
+
         return http_response(b"Not Found", status=b"404 Not Found")
 
     return handler(request)

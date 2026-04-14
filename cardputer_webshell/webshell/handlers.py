@@ -2,6 +2,25 @@ import os
 from .utils import http_response, parse_request_line, parse_query, url_decode, guess_mime
 # ==== HANDLERS ====
 
+def stream_file(filepath):
+    try:
+        f = open(filepath, "rb")
+        mime = guess_mime(filepath)
+        filename = filepath.encode()
+
+        header = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: " + mime + b"\r\n"
+            b"Content-Disposition: inline; filename=\"" + filename + b"\"\r\n"
+            b"Cache-Control: no-store\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+
+        return (f, header)
+
+    except Exception as e:
+        return http_response(str(e).encode(), status=b"500 Internal Server Error")
+
 
 def index_handler(request):
     return http_response(b"Hello, world!\n")
@@ -54,23 +73,7 @@ def get_file_handler(request):
 
     filepath = url_decode(target).decode()
 
-    try:
-        f = open(filepath, "rb")
-        mime = guess_mime(filepath)
-        filename = url_decode(target)
-
-        header = (
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: " + mime + b"\r\n"
-            b"Content-Disposition: inline; filename=\"" + filename + b"\"\r\n"
-            b"Cache-Control: no-store\r\n"
-            b"Connection: close\r\n\r\n"
-        )
-
-        return (f, header)
-
-    except Exception as e:
-        return http_response(str(e).encode(), status=b"500 Internal Server Error")
+    return stream_file(filepath)
 
 def post_file_handler(request):
     method, full_path = parse_request_line(request)

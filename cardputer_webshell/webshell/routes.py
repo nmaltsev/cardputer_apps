@@ -1,5 +1,6 @@
-
 from .handlers import index_handler, get_debug_handler, get_dir_handler, get_file_handler, post_file_handler, upload_handler, ui_handler, delete_handler
+
+STATIC_DIR = b"/media"
 
 routes = {
     b"GET /": index_handler,
