@@ -1,8 +1,9 @@
-import os
+import os, sys
 from .utils import pad_line, get_key, clear, is_binary_file
-from .type import type_file
+from .type_file import type_file
 from .dir_menu import dir_menu
 from .hex_view_streaming import hex_view
+from .device_menu import device_menu
 
 # ---------- FILE MANAGER ----------
 def list_dir(path='/'):
@@ -27,7 +28,7 @@ def list_dir(path='/'):
 
         #print()
         # clear()
-        print(pad_line(">{} {}".format(path, path != '/')))
+        print(pad_line(">{}".format(path)))
 
         for i, name in enumerate(chunk):
             print("{} {}".format(i, name))
@@ -36,7 +37,7 @@ def list_dir(path='/'):
             print('\n' * (page_size - len(chunk) -1))
 
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [m] p:"+str(page)))
+        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page)))
 
         key = get_key()
         
@@ -44,6 +45,7 @@ def list_dir(path='/'):
             break
 
         if key == 't':
+            sys.exit()
             return
 
         elif key == 'b':
@@ -53,6 +55,9 @@ def list_dir(path='/'):
         elif key == 'f':
             if end < len(entries):
                 page += 1
+
+        elif key == 'd':
+            device_menu()
 
         elif key == 'm':
             dir_menu(path)
@@ -78,6 +83,7 @@ def list_dir(path='/'):
                         list_dir(full_path)
                     else:
                         type_file(full_path)
+                        # TODO It seems the binary check does not work
                         # if is_binary_file(full_path):
                         #     hex_view(full_path)
                         # else:

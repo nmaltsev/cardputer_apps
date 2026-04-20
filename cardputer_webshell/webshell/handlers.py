@@ -88,9 +88,10 @@ def post_file_handler(request):
         return http_response(b"Invalid request", status=b"400 Bad Request")
 
     body = request[split + 4:]
+    filepath = url_decode(target).decode()
 
     try:
-        with open(target.decode(), "wb") as f:
+        with open(filepath, "wb") as f:
             f.write(body)
         return http_response(b"OK")
     except Exception as e:
@@ -188,55 +189,182 @@ Cache-Control: no-store\r
 Connection: close\r
 \r
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Explorer</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fa;
+    margin: 20px;
+}
+
+fieldset {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: white;
+}
+
+legend {
+    font-weight: bold;
+    padding: 0 10px;
+}
+
+input, textarea, button {
+    font-size: 14px;
+    padding: 6px;
+}
+
+button {
+    cursor: pointer;
+    border-radius: 5px;
+    border: 1px solid #888;
+    background: #eee;
+}
+
+button:hover {
+    background: #ddd;
+}
+
+#list {
+    height: 50vh;
+    overflow: auto;
+    display: grid;
+    grid-template-columns: 40px 1fr 100px;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+#list div {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+#list div:nth-child(3n+2) {
+    cursor: pointer;
+    color: #0077cc;
+}
+
+#list div:nth-child(3n+2):hover {
+    text-decoration: underline;
+}
+
+.icon-dir {
+    color: green;
+    font-weight: bold;
+}
+
+.icon-file {
+    color: #555;
+}
+
+#fileForm {
+    width: 600px;
+    max-width: 90vw;
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+
+.close-btn {
+    float: right;
+    background: #ff5c5c;
+    color: white;
+    border: none;
+}
+</style>
+</head>
 <body>
 
-<h3>File Explorer</h3>
+<form onsubmit="event.preventDefault(); listDir();">
+    <fieldset>
+        <legend>File Explorer</legend>
+        <div>
+            <input id="path" value="/" style="width:300px">
+            <button type="submit">List</button>
+        </div>
+        <div id="list"></div>
+    </fieldset>
+</form>
 
-<input id="path" value="/" style="width:300px">
-<button onclick="listDir()">List</button>
+<fieldset id="fileForm" popover="auto">
+    <legend>Editor</legend>
+    <button type="button" class="close-btn" popovertarget="fileForm">X</button>
 
-<ul id="list" style="height:50vh;overflow:auto;"></ul>
+    <form onsubmit="event.preventDefault(); loadFile();">
+        <input id="file_path" style="width:300px">
+        <button type="submit">Load</button>
+    </form>
 
-<hr>
-
-<h3>Editor</h3>
-<input id="filepath" style="width:300px"><br><br>
-<textarea id="editor" rows="15" cols="80"></textarea><br>
-
-<button onclick="loadFile()">Load</button>
-<button onclick="saveFile()">Save</button>
+    <form onsubmit="event.preventDefault(); saveFile();">
+        <textarea id="editor" rows="15"></textarea>
+        <button type="submit">Save</button>
+    </form>
+</fieldset>
 
 <script>
+function t(text){return document.createTextNode(text);} // preserved
+
+function cr(){
+    if (arguments.length === 0) throw('No tag name');
+    var el = document.createElement(arguments[0]);
+    for(var i = 1, m = arguments.length; i < m; i += 2){
+        if(arguments[i] && arguments[i + 1] !== undefined) {
+            if (arguments[i] === 'class') {
+                el.className = arguments[i + 1];
+            } else {
+                el[arguments[i]] = arguments[i + 1];
+            }
+        }
+    }
+    return el;
+}
+
 async function listDir() {
   try {
     let path = document.getElementById("path").value;
     let res = await fetch("/dir?path=" + encodeURIComponent(path));
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
     let files = await res.json();
 
     let list = document.getElementById("list");
     list.innerHTML = "";
 
     files.forEach(item => {
-      let li = document.createElement("li");
+        let name = item[0];
+        let type = item[1];
+        let sizeVal = item[2] || 0;
 
-      let name = item[0];
-      let type = item[1];
+        let icon = cr('div', 'class', (type==2 ? 'icon-dir' : 'icon-file'), 'textContent', (type==2 ? "📁" : "📄"));
+        let link = cr('div', 'textContent', name);
+        let size = cr('div', 'textContent', sizeVal + ' B');
 
-      li.textContent = `[${type==2 ? "D" : "F"}] ${name} ${item[2]}B`;
-
-      li.onclick = () => {
         let full = (path.endsWith("/") ? path : path + "/") + name;
 
         if (type == 2) {
-          document.getElementById("path").value = full;
-          listDir();
+            link.onclick = () => {
+                document.getElementById("path").value = full;
+                listDir();
+            };
         } else {
-          document.getElementById("filepath").value = full;
+            link.setAttribute('popovertarget', 'fileForm');
+            link.onclick = () => {
+                document.getElementById("file_path").value = full;
+            };
         }
-      };
 
-      list.appendChild(li);
+        list.appendChild(icon);
+        list.appendChild(link);
+        list.appendChild(size);
     });
   } catch(e) {
     alert("Error loading directory: " + String(e));
@@ -244,22 +372,36 @@ async function listDir() {
 }
 
 async function loadFile() {
-  let path = document.getElementById("filepath").value;
-  let res = await fetch("/file?path=" + encodeURIComponent(path));
-  let text = await res.text();
-  document.getElementById("editor").value = text;
+  try {
+    let path = document.getElementById("file_path").value;
+    let res = await fetch("/file?path=" + encodeURIComponent(path));
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    let text = await res.text();
+    document.getElementById("editor").value = text;
+  } catch (e) {
+    alert("Error loading file: " + e);
+  }
 }
 
 async function saveFile() {
-  let path = document.getElementById("filepath").value;
-  let content = document.getElementById("editor").value;
+  try {
+    let path = document.getElementById("file_path").value;
+    let content = document.getElementById("editor").value;
 
-  await fetch("/file?path=" + encodeURIComponent(path), {
-    method: "POST",
-    body: content
-  });
+    let res = await fetch("/file?path=" + encodeURIComponent(path), {
+      method: "POST",
+      headers: { 'Content-Type': 'text/plain' },
+      body: content
+    });
 
-  alert("Saved");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    alert("Saved");
+  } catch (e) {
+    alert("Error saving file: " + e);
+  }
 }
 </script>
 

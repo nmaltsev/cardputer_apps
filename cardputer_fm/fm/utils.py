@@ -29,7 +29,8 @@ def wrap_line(line, width=38):
     return lines
 
 def clear():
-	sys.stderr.write("\x1b[2J\x1b[H")
+	# sys.stderr.write("\x1b[2J\x1b[H")
+    print(chr(27)+"[2J")
 
 # ---------- BINARY DETECTION ----------
 def is_binary_file(path, sample_size=512):

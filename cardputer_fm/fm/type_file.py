@@ -1,5 +1,6 @@
 from .utils import pad_line, wrap_line, get_key
 from .file_menu import file_menu
+from .editor import text_editor
 
 # ---------- TYPE FUNCTION ----------
 def type_file(path):
@@ -29,7 +30,10 @@ def type_file(path):
         for line in chunk:
             print(line)
 
-        print(pad_line("? 0-6 <b f> q [m] p=" + str(page)))
+        if (len(chunk) < page_size):
+            print('\n' * (page_size - len(chunk) -1))
+
+        print(pad_line("? <b f> q [mezw] p=" + str(page)))
 
         key = get_key()
 
@@ -40,6 +44,16 @@ def type_file(path):
         elif key == 'b':
             if page > 0:
                 page -= 1
+        elif key == 'e':
+            text_editor(path)
+
+        elif key == 'z':
+            # todo temporal fix (last stable version)
+            from .editor1 import text_editor as text_editor1
+            text_editor1(path)  
+        elif key == 'w':
+            from .editor2 import text_editor as text_editor2
+            text_editor2(path)
         else:
             if end < len(lines):
                 page += 1
