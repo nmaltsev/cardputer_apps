@@ -5,9 +5,10 @@ from .dir_menu import dir_menu
 from .hex_view_streaming import hex_view
 from .device_menu import device_menu
 
+PAGE_SIZE = 7
 # ---------- FILE MANAGER ----------
 def list_dir(path='/'):
-    page_size = 7
+    page_size = PAGE_SIZE
     page = 0
 
     while True:
@@ -26,9 +27,7 @@ def list_dir(path='/'):
         end = start + page_size
         chunk = entries[start:end]
 
-        #print()
-        # clear()
-        print(pad_line(">{}".format(path)))
+        print(pad_line(">{}".format(path), width=39), end='|')
 
         for i, name in enumerate(chunk):
             print("{} {}".format(i, name))
@@ -37,7 +36,7 @@ def list_dir(path='/'):
             print('\n' * (page_size - len(chunk) -1))
 
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page)))
+        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=39),end='|')
 
         key = get_key()
         
