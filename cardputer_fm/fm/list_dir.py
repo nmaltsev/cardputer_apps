@@ -27,16 +27,19 @@ def list_dir(path='/'):
         end = start + page_size
         chunk = entries[start:end]
 
-        print(pad_line(">{}".format(path), width=39), end='|')
+        # Header:
+        print(pad_line(">{}".format(path), width=38), end='|')
 
-        for i, name in enumerate(chunk):
-            print("{} {}".format(i, name))
+        # Entries:
+        for i in range(page_size):
+            if i < len(chunk):
+                print("{} {}".format(i, chunk[i]))
+            else:
+                print()  # empty line
 
-        if (len(chunk) < page_size):
-            print('\n' * (page_size - len(chunk) -1))
-
+        # Footer:
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=39),end='|')
+        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=38),end='|')
 
         key = get_key()
         
@@ -81,12 +84,12 @@ def list_dir(path='/'):
                     if os.stat(full_path)[0] & 0x4000:
                         list_dir(full_path)
                     else:
-                        type_file(full_path)
+                        # type_file(full_path)
                         # TODO It seems the binary check does not work
-                        # if is_binary_file(full_path):
-                        #     hex_view(full_path)
-                        # else:
-                        #     type_file(full_path)
+                        if is_binary_file(full_path):
+                            hex_view(full_path)
+                        else:
+                            type_file(full_path)
                 except Exception as exc:
                     print("[DIR]Cannot access:", full_path)
                     print(exc)

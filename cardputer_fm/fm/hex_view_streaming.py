@@ -7,7 +7,9 @@ def format_hex_line(offset, chunk):
     hex_part = " ".join("{:02X}".format(b) for b in chunk)
     ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
 
-    hex_part = hex_part.ljust(16 * 3 - 1)
+    target_len = 16 * 3 - 1
+    if len(hex_part) < target_len:
+        hex_part = hex_part + " " * (target_len - len(hex_part))
 
     return "{:08X}  {}  {}".format(offset, hex_part, ascii_part)
 

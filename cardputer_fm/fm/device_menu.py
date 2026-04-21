@@ -16,6 +16,20 @@ from .sdcard_cp import SDCard
 
 # TODO rename in settings menu
 
+def save_board_pins(filepath):
+    import board
+
+    try:
+        items = dir(board)
+
+        with open(filepath, "w") as f:
+            for item in items:
+                f.write(item + "\n")
+
+        print("Saved board pins to:", filepath)
+
+    except Exception as e:
+        print("Error saving board pins:", e)
 
 # ---------- BRIGHTNESS ----------
 def brght(level=None):
@@ -87,28 +101,54 @@ def mount_sd1(slot, mount_point):
         print("mount error:", e)
 
 def mount_sd(slot, mount_point):
+    if not HAS_BOARD:
+        print("SD not available on this platform")
+        return
+
     try:
         import storage
         import digitalio
         from pydos_hw import Pydos_hw
+    except ImportError:
+        print("SD not available: missing modules")
+        return
 
-        # normalize path
-        mount_point = mount_point.strip().strip('"').strip("'")
+    # normalize path
+    mount_point = mount_point.strip().strip('"').strip("'")
 
-        # prevent double mount
-        try:
-            for m in storage.getmounts():
-                if m.mount_point == mount_point:
-                    print("already mounted:", mount_point)
-                    return
-        except:
-            pass
+    # ---------- FIX 1: Prevent / force-clean any previous mount at this exact path ----------
+    # This eliminates the "same SD card mounted at two different paths" problem
+    # (lingering / stale mounts from failed attempts or other code).
+    # try:
+    #     storage.umount(mount_point)
+    #     print("unmounted previous:", mount_point)
+    # except (OSError, ValueError):
+    #     pass  # not mounted or other harmless error
+    try:
+        for m in storage.getmounts():
+            if m.mount_point.rstrip("/") == mount_point.rstrip("/"):
+                print("already mounted:", mount_point)
+                return
+    except:
+        pass
 
-        ensure_dir("/sd")
-        ensure_dir(mount_point)
+    ensure_dir("/sd")
+    ensure_dir(mount_point)
 
+    spi = None
+    cs = None
+    mounted = False
+
+    try:
         spi = Pydos_hw.SPI(slot - 1)
+        if spi is None:
+            print("SPI not available for slot", slot)
+            return
+
         cs_pin = Pydos_hw.CS[slot - 1]
+        if cs_pin is None:
+            print("CS pin not defined for slot", slot)
+            return
 
         cs = digitalio.DigitalInOut(cs_pin)
 
@@ -116,11 +156,42 @@ def mount_sd(slot, mount_point):
         vfs = storage.VfsFat(sd)
 
         storage.mount(vfs, mount_point)
-
         print("mounted:", mount_point)
+        mounted = True
 
     except Exception as e:
-        print("mount error:", e)
+        err_str = str(e).lower()
+        if "no sd card" in err_str or "cmd0 failed" in err_str:
+            print(f"No SD card detected in slot {slot} - insert a card and try again")
+        else:
+            print("mount error:", e)
+        
+        try:
+            if cs:
+                cs.deinit()
+        except:
+            pass
+
+        try:
+            if spi:
+                spi.unlock()
+        except:
+            pass
+
+    # finally:
+    #     # ---------- FIX 2: Clean up only on failure ----------
+    #     # Prevents the "SD_CS in use" error on the next attempt after a no-card failure.
+    #     if not mounted:
+    #         if cs is not None:
+    #             try:
+    #                 cs.deinit()   # releases the pin claim
+    #             except:
+    #                 pass
+    #         if spi is not None:
+    #             try:
+    #                 spi.unlock()  # release SPI lock if it was acquired
+    #             except (AttributeError, RuntimeError):
+    #                 pass
 
 def unmount_sd(path):
     if not HAS_BOARD:
@@ -132,6 +203,22 @@ def unmount_sd(path):
         print("unmounted:", path)
     except Exception as e:
         print("unmount error:", e)
+
+# ---------- SD SLOT DETECTION ----------
+def get_sd_slots():
+    try:
+        from pydos_hw import Pydos_hw
+
+        slots = []
+        for i, cs in enumerate(Pydos_hw.CS):
+            if cs is not None and Pydos_hw.SPI(i) is not None:
+                slots.append(i + 1)  # slots are 1-based
+
+        return slots
+
+    except Exception as e:
+        print("slot detect error:", e)
+        return []
 
 # ---------- DEVICE MENU ----------
 def device_menu():
@@ -160,35 +247,57 @@ def device_menu():
         # ---------- MOUNT ----------
         elif key == '1':
             print("Mount SD:")
-            #  TOOD get number of slots
-            print("1 -> /sd/sd1")
-            print("2 -> /sd/sd2")
 
-            k = get_key()
+            slots = get_sd_slots()
 
-            if k == '1':
-                mount_sd(1, "/sd/sd1")
-            elif k == '2':
-                mount_sd(2, "/sd/sd2")
-            elif k == '3':
+            if not slots:
+                print("No SD slots available")
+                continue
+
+            # show dynamic menu
+            for s in slots:
+                print(f"{s} -> /sd/sd{s}")
+
+            print("Select slot:")
+            k = input().strip()
+
+            if k == 'test':
                 mount_sd1(1, "/sd/sd1")
+                continue
 
+            try:
+                slot = int(k)
+            except:
+                print("invalid selection (enter a number)")
+                continue
+
+            if slot in slots:
+                mount_sd(slot, f"/sd/sd{slot}")
+            else:
+                print("invalid slot")
         # ---------- UNMOUNT ----------
         elif key == '2':
             print("Unmount:")
             print("0 -> ALL")
-            print("1 -> /sd/sd1")
-            print("2 -> /sd/sd2")
+            i = 0
+            for m in storage.getmounts():
+                print(i+1, ' -> ', m.mount_point)
 
             k = get_key()
+            try:
+                slot = int(k)
+            except:
+                print("invalid selection (enter a number)")
+                continue
 
-            if k == '0':
-                unmount_sd("/sd/sd1")
-                unmount_sd("/sd/sd2")
-            elif k == '1':
-                unmount_sd("/sd/sd1")
-            elif k == '2':
-                unmount_sd("/sd/sd2")
+            if k == 0:
+                for m in storage.getmounts():
+                    storage.unmount(m.mount_point)
+            else :
+                mounts = storage.getmounts()
+                if k > -1 and k < len(mounts):
+                    storage.unmount(mounts[k].mount_point)
+
 
         # ---------- BRIGHTNESS ----------
         elif key == '3':
@@ -209,3 +318,8 @@ def device_menu():
 
         elif key == '5':
             wifi_get_and_print_datetime(tz_offset=2)  # e.g. France (UTC+2 DST)
+        
+        elif key == '6':
+            # print(supervisor.runtime.display.height)
+            print('Dispaly: ', supervisor.runtime.display)
+            save_board_pins('/usr/board_pins.txt')

@@ -356,9 +356,12 @@ async function listDir() {
                 listDir();
             };
         } else {
+            // Fixed popover opening
             link.setAttribute('popovertarget', 'fileForm');
             link.onclick = () => {
                 document.getElementById("file_path").value = full;
+                // Explicitly show the popover (this is the missing piece)
+                document.getElementById("fileForm").showPopover();
             };
         }
 

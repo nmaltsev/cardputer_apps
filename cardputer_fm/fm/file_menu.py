@@ -25,6 +25,26 @@ def format_time(ts):
 
 
 def copy_file(src, dst):
+    # Check if dst is a directory (existing or implied by trailing '/')
+    is_dir = False
+
+    if dst.endswith("/"):
+        is_dir = True
+    else:
+        try:
+            if os.stat(dst)[0] & 0x4000:  # directory flag
+                is_dir = True
+        except:
+            pass  # dst doesn't exist yet
+
+    # If destination is a directory → append filename
+    if is_dir:
+        filename = src.rstrip("/").split("/")[-1]
+        if not dst.endswith("/"):
+            dst += "/"
+        dst = dst + filename
+
+    # Copy file
     with open(src, "rb") as fsrc:
         with open(dst, "wb") as fdst:
             while True:
