@@ -28,3 +28,4 @@ add a keycode command to type a char/char combination keycode
 
 https://github.com/RetiredWizard/PyDOS
 -Implementing a proper "redraw only changed parts"
+avoids loading full files

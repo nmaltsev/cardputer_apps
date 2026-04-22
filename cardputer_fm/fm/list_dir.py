@@ -1,11 +1,11 @@
 import os, sys
-from .utils import pad_line, get_key, clear, is_binary_file
+from .utils import pad_line, get_key, clear, is_text_file
 from .type_file import type_file
 from .dir_menu import dir_menu
 from .hex_view_streaming import hex_view
 from .device_menu import device_menu
 
-PAGE_SIZE = 7
+PAGE_SIZE = 8
 # ---------- FILE MANAGER ----------
 def list_dir(path='/'):
     page_size = PAGE_SIZE
@@ -28,7 +28,8 @@ def list_dir(path='/'):
         chunk = entries[start:end]
 
         # Header:
-        print(pad_line(">{}".format(path), width=38), end='|')
+        # print(pad_line(">{}".format(path), width=38), end='|')
+        print(pad_line(">{}".format(path), width=39))
 
         # Entries:
         for i in range(page_size):
@@ -39,7 +40,7 @@ def list_dir(path='/'):
 
         # Footer:
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=38),end='|')
+        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=38), end='|')
 
         key = get_key()
         
@@ -84,12 +85,15 @@ def list_dir(path='/'):
                     if os.stat(full_path)[0] & 0x4000:
                         list_dir(full_path)
                     else:
-                        # type_file(full_path)
-                        # TODO It seems the binary check does not work
-                        if is_binary_file(full_path):
-                            hex_view(full_path)
+                        if is_text_file(full_path):
+                            try:
+                                type_file(full_path)
+                            except UnicodeError:
+                                hex_view(full_path)    
+                            except Exception as exc:
+                                print('TypeFile exc: ', exc)
                         else:
-                            type_file(full_path)
+                            hex_view(full_path)
                 except Exception as exc:
                     print("[DIR]Cannot access:", full_path)
                     print(exc)

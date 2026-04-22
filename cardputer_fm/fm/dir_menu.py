@@ -20,6 +20,7 @@ def format_time(ts):
 
 # ---------- FILE OPS (NO SHUTIL) ----------
 def copy_file(src, dst):
+    print("CopyFile ", src, " to ", dst)
     with open(src, "rb") as fsrc:
         with open(dst, "wb") as fdst:
             while True:
@@ -30,6 +31,7 @@ def copy_file(src, dst):
 
 
 def copy_dir(src, dst):
+    print("CopyDir ", src, " to ", dst)
     os.mkdir(dst)
     for name in os.listdir(src):
         s = src.rstrip("/") + "/" + name

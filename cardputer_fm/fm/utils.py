@@ -20,7 +20,7 @@ def pad_line(text, width=38):
 
 
 # ---------- TEXT WRAP ----------
-def wrap_line(line, width=38):
+def wrap_line(line, width=37):
     lines = []
     while len(line) > width:
         lines.append(line[:width])
@@ -33,23 +33,27 @@ def clear():
     print(chr(27)+"[2J")
 
 # ---------- BINARY DETECTION ----------
-def is_binary_file(path, sample_size=512):
-    try:
-        with open(path, "rb") as f:
-            chunk = f.read(sample_size)
-            if not chunk:
-                return False  # empty file = treat as text
+def is_text_file(path):
+    # Whitelisted text extensions (lowercase, no allocation-heavy ops)
+    TEXT_EXTS = (
+        ".py", ".yaml", ".yml",
+        ".txt", ".log", ".htm", ".html", ".xml",
+        ".toml", ".json", ".md", ".js", ".css"
+    )
 
-            # Null byte check (strong binary indicator)
-            if b"\x00" in chunk:
-                return True
+    # Extract filename (avoid os.path to keep it lightweight)
+    name = path.rsplit("/", 1)[-1]
 
-            # Count non-text bytes
-            text_chars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(32, 127)))
-            nontext = sum(1 for b in chunk if b not in text_chars)
+    # Find extension
+    dot = name.rfind(".")
+    if dot == -1:
+        return False
 
-            # If more than 30% non-text → binary
-            return (nontext / len(chunk)) > 0.3
+    ext = name[dot:].lower()
 
-    except:
-        return True  # safest fallback
+    # Check against whitelist
+    for e in TEXT_EXTS:
+        if ext == e:
+            return True
+
+    return False

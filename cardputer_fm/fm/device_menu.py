@@ -18,13 +18,16 @@ from .sdcard_cp import SDCard
 
 def save_board_pins(filepath):
     import board
+    import supervisor
 
     try:
         items = dir(board)
+        superviser_runtime_items = dir(supervisor.runtime)
 
         with open(filepath, "w") as f:
             for item in items:
                 f.write(item + "\n")
+            # TODO superviser_runtime_items
 
         print("Saved board pins to:", filepath)
 
@@ -116,14 +119,6 @@ def mount_sd(slot, mount_point):
     # normalize path
     mount_point = mount_point.strip().strip('"').strip("'")
 
-    # ---------- FIX 1: Prevent / force-clean any previous mount at this exact path ----------
-    # This eliminates the "same SD card mounted at two different paths" problem
-    # (lingering / stale mounts from failed attempts or other code).
-    # try:
-    #     storage.umount(mount_point)
-    #     print("unmounted previous:", mount_point)
-    # except (OSError, ValueError):
-    #     pass  # not mounted or other harmless error
     try:
         for m in storage.getmounts():
             if m.mount_point.rstrip("/") == mount_point.rstrip("/"):
@@ -261,7 +256,7 @@ def device_menu():
             print("Select slot:")
             k = input().strip()
 
-            if k == 'test':
+            if k == '0':
                 mount_sd1(1, "/sd/sd1")
                 continue
 
@@ -320,6 +315,7 @@ def device_menu():
             wifi_get_and_print_datetime(tz_offset=2)  # e.g. France (UTC+2 DST)
         
         elif key == '6':
+            # import supervisor
             # print(supervisor.runtime.display.height)
-            print('Dispaly: ', supervisor.runtime.display)
+            # print('Dispaly: ', supervisor.runtime.display)
             save_board_pins('/usr/board_pins.txt')

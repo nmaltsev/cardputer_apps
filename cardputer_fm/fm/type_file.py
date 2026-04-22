@@ -16,7 +16,7 @@ def type_file(path):
         l = l.rstrip("\n")
         lines.extend(wrap_line(l))
 
-    page_size = 7
+    page_size = 8
     page = 0
 
     while True:
@@ -24,16 +24,15 @@ def type_file(path):
         end = start + page_size
         chunk = lines[start:end]
 
-        print()
-        print(pad_line("F: {}".format(path)))
+        print(pad_line("F: {}".format(path), width=39))
 
-        for line in chunk:
-            print(line)
+        for i in range(page_size):
+            if i < len(chunk):
+                print("{} {}".format(i, chunk[i]))
+            else:
+                print()  # empty line
 
-        if (len(chunk) < page_size):
-            print('\n' * (page_size - len(chunk) -1))
-
-        print(pad_line("? <b f> q [mezw] p=" + str(page)))
+        print(pad_line("? <b f> q [mezw] p=" + str(page), width=39), end='')
 
         key = get_key()
 

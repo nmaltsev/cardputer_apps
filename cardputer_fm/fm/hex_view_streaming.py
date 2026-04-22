@@ -23,7 +23,7 @@ def hex_view(path):
         return
 
     bytes_per_line = 16
-    lines_per_page = 7
+    lines_per_page = 4
     page_size_bytes = bytes_per_line * lines_per_page
 
     offset = 0
@@ -45,19 +45,19 @@ def hex_view(path):
             chunk = data[i:i + bytes_per_line]
             print(format_hex_line(offset + i, chunk))
 
-        print(pad_line("> d,u,q off=" + str(offset)))
+        print(pad_line("? b,f,q off=" + str(offset)))
 
         key = get_key()
 
         if key == 'q':
             break
 
-        elif key == 'u':
+        elif key == 'b':
             offset -= page_size_bytes
             if offset < 0:
                 offset = 0
 
-        elif key == 'd':
+        elif key == 'f':
             if offset + page_size_bytes < size:
                 offset += page_size_bytes
             else:

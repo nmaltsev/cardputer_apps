@@ -1,5 +1,6 @@
 import time
 import digitalio
+import os
 
 _CMD_TIMEOUT = 100
 
@@ -9,6 +10,11 @@ _R1_ILLEGAL_COMMAND = 1 << 2
 _TOKEN_CMD25 = 0xFC
 _TOKEN_STOP_TRAN = 0xFD
 _TOKEN_DATA = 0xFE
+
+
+# ---------- DEBUG CONFIG ----------
+SD_DEBUG = True
+SD_DEBUG_FILE = "/sd/sd_debug.log"
 
 
 class SDCard:
@@ -44,8 +50,29 @@ class SDCard:
         for _ in range(32):
             self._spi_write(b"\xff")
 
+        self._dbg("---- INIT START ----")
+
         # init card
         self.init_card(baudrate)
+
+    # ---------- DEBUG ----------
+    def _dbg(self, *args):
+        if not SD_DEBUG:
+            return
+
+        msg = "[SD] " + " ".join(str(a) for a in args)
+
+        # try file logging first
+        try:
+            with open(SD_DEBUG_FILE, "a") as f:
+                f.write(msg + "\n")
+        except Exception:
+            # fallback to console
+            print(msg)
+
+    def _deselect(self):
+        self.cs.value = True
+        self._spi_write(b"\xff")
 
     # ---------- SPI helpers ----------
     def _spi_write(self, buf):
@@ -73,12 +100,17 @@ class SDCard:
         else:
             raise OSError("no SD card (CMD0 failed)")
 
+        self._dbg("CMD0 success")
+
         # CMD8: check version
         r = self.cmd(8, 0x01AA, 0x87, 4)
+        self._dbg("CMD8 response received")
 
         if r == _R1_IDLE_STATE:
+            self._dbg("Card is v2")
             self.init_card_v2()
         elif r == (_R1_IDLE_STATE | _R1_ILLEGAL_COMMAND):
+            self._dbg("Card is v1")
             self.init_card_v1()
         else:
             raise OSError("cannot determine SD version")
@@ -112,7 +144,9 @@ class SDCard:
         for _ in range(_CMD_TIMEOUT):
             time.sleep(0.05)
             self.cmd(55, 0, 0)
-            if self.cmd(41, 0, 0) == 0:
+            r = self.cmd(41, 0, 0)
+            self._dbg(f"ACMD41 (v1) -> 0x{r:02X}")
+            if r == 0:
                 self.cdv = 512
                 return
         raise OSError("timeout waiting for v1 card")
@@ -120,18 +154,30 @@ class SDCard:
     def init_card_v2(self):
         for _ in range(_CMD_TIMEOUT):
             time.sleep(0.05)
+
             self.cmd(58, 0, 0, 4)
             self.cmd(55, 0, 0)
-            if self.cmd(41, 0x40000000, 0) == 0:
+
+            r = self.cmd(41, 0x40000000, 0)
+            self._dbg(f"ACMD41 -> 0x{r:02X}")
+
+            if r == 0:
                 self.cmd(58, 0, 0, -4)
                 ocr = self.tokenbuf[0]
                 self.cdv = 1 if (ocr & 0x40) else 512
                 return
+
         raise OSError("timeout waiting for v2 card")
 
     # ---------- command ----------
     def cmd(self, cmd, arg, crc, final=0, release=True, skip1=False):
+        # ensure proper deselect timing
+        self.cs.value = True
+        self._spi_write(b"\xff")
+
         self.cs.value = False
+
+        self._dbg(f"CMD{cmd} arg=0x{arg:08X}")
 
         buf = self.cmdbuf
         buf[0] = 0x40 | cmd
@@ -149,19 +195,30 @@ class SDCard:
         for _ in range(_CMD_TIMEOUT):
             self._spi_readinto(self.tokenbuf)
             r = self.tokenbuf[0]
+
             if not (r & 0x80):
+                self._dbg(f" -> R1=0x{r:02X}")
+
+                extra = []
+
                 if final < 0:
                     self._spi_readinto(self.tokenbuf)
+                    extra.append(self.tokenbuf[0])
                     final = -1 - final
+
                 for _ in range(final):
-                    self._spi_write(b"\xff")
+                    b = self._spi_read(1)[0]
+                    extra.append(b)
+
+                if extra:
+                    self._dbg("   extra:", " ".join(f"{b:02X}" for b in extra))
+
                 if release:
-                    self.cs.value = True
-                    self._spi_write(b"\xff")
+                    self._deselect()
+
                 return r
 
-        self.cs.value = True
-        self._spi_write(b"\xff")
+        self._deselect()
         return -1
 
     # ---------- read ----------
@@ -171,6 +228,7 @@ class SDCard:
         for _ in range(_CMD_TIMEOUT):
             self._spi_readinto(self.tokenbuf)
             if self.tokenbuf[0] == _TOKEN_DATA:
+                self._dbg("DATA TOKEN received")
                 break
             time.sleep(0.001)
         else:
