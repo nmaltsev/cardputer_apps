@@ -29,3 +29,10 @@ add a keycode command to type a char/char combination keycode
 https://github.com/RetiredWizard/PyDOS
 -Implementing a proper "redraw only changed parts"
 avoids loading full files
+
+FR copy file dialog:
+1. type the file path
+2. if path not stating from / it is relative.
+3. Must process ../../
+
+FR add an option to open hex_view in file_menu

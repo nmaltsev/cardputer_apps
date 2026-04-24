@@ -29,7 +29,7 @@ def list_dir(path='/'):
 
         # Header:
         # print(pad_line(">{}".format(path), width=38), end='|')
-        print(pad_line(">{}".format(path), width=39))
+        print(pad_line("b {}".format(path), width=39))
 
         # Entries:
         for i in range(page_size):
@@ -40,7 +40,7 @@ def list_dir(path='/'):
 
         # Footer:
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("? 0-" + str(page_size - 1) +" <bf> q t [md] p:"+str(page), width=38), end='|')
+        print(pad_line("f 0-" + str(page_size - 1) +",q,t,m,d p:"+str(page), width=38), end='|')
 
         key = get_key()
         
@@ -92,11 +92,13 @@ def list_dir(path='/'):
                                 hex_view(full_path)    
                             except Exception as exc:
                                 print('TypeFile exc: ', exc)
+                                get_key()
                         else:
                             hex_view(full_path)
                 except Exception as exc:
                     print("[DIR]Cannot access:", full_path)
                     print(exc)
+                    get_key()
 
         # Reset page if out of range
         if page * page_size >= len(entries):

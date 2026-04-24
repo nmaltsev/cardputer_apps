@@ -7,7 +7,6 @@ except ImportError:
 import os
 import time
 
-
 from .utils import pad_line, get_key
 from .utils_date_sync import wifi_get_and_print_datetime 
 from .utils_date import prompt_and_set_date
@@ -25,9 +24,12 @@ def save_board_pins(filepath):
         superviser_runtime_items = dir(supervisor.runtime)
 
         with open(filepath, "w") as f:
+            f.write('board module exports:\n')
             for item in items:
                 f.write(item + "\n")
-            # TODO superviser_runtime_items
+            f.write('supervisor.runtime module exports:\n')
+            for item in superviser_runtime_items:
+                f.write(item + "\n")
 
         print("Saved board pins to:", filepath)
 

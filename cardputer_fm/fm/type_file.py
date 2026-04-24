@@ -4,12 +4,13 @@ from .editor import text_editor
 
 # ---------- TYPE FUNCTION ----------
 def type_file(path):
-    try:
-        with open(path, "r") as f:
-            raw_lines = f.readlines()
-    except Exception as e:
-        print("Error opening file:", e)
-        return
+    # try:
+    #     with open(path, "r") as f:
+    #         raw_lines = f.readlines()
+    # except Exception as e:
+    #     print("Error opening file:", e)
+    with open(path, "r") as f:
+        raw_lines = f.readlines()
 
     lines = []
     for l in raw_lines:
