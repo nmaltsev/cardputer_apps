@@ -10,8 +10,8 @@ import time
 from .utils import pad_line, get_key
 from .utils_date_sync import wifi_get_and_print_datetime 
 from .utils_date import prompt_and_set_date
-from .sdcard_cp import SDCard
-#from .sdcard_cp1 import SDCard
+# from .sdcard_cp import SDCard
+from .sdcard_cp1 import SDCard
 #from .sdcard_cp2 import SDCard
 
 

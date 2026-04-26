@@ -58,7 +58,8 @@ def text_editor(path):
                 if file_row == cy:
                     rel_cx = cx - col_offset
                     # build exactly screen_w chars, placing _ at cursor (replaces char or first padding space)
-                    disp_list = list(visible.ljust(screen_w))
+                    # disp_list = list(visible.ljust(screen_w))
+                    disp_list = list(pad_line(visible))
                     disp_list[rel_cx] = "_"
                     c_line = "".join(disp_list)
                 else:

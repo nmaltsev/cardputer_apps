@@ -16,7 +16,7 @@ def get_key():
 def pad_line(text, width=38):
     if len(text) >= width:
         return text[:width]
-    return text + "-" * (width - len(text))
+    return text + "_" * (width - len(text))
 
 
 # ---------- TEXT WRAP ----------
@@ -36,7 +36,7 @@ def clear():
 def is_text_file(path):
     # Whitelisted text extensions (lowercase, no allocation-heavy ops)
     TEXT_EXTS = (
-        ".py", ".yaml", ".yml",
+        ".py", ".yaml", ".yml", '.bat',
         ".txt", ".log", ".htm", ".html", ".xml",
         ".toml", ".json", ".md", ".js", ".css"
     )

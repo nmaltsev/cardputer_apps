@@ -29,6 +29,7 @@ def list_dir(path='/'):
 
         # Header:
         # print(pad_line(">{}".format(path), width=38), end='|')
+        print()
         print(pad_line("b {}".format(path), width=39))
 
         # Entries:
@@ -40,7 +41,7 @@ def list_dir(path='/'):
 
         # Footer:
         # m - means menu (file_size, creation_date, modification_date, remove, rename, move, edit)
-        print(pad_line("f 0-" + str(page_size - 1) +",q,t,m,d p:"+str(page), width=38), end='|')
+        print(pad_line("f 0-" + str(page_size - 1) +",q,t,m,d p:"+str(page), width=39), end='')
 
         key = get_key()
         

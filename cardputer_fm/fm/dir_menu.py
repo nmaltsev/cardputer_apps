@@ -53,11 +53,13 @@ def remove_dir(path):
             if os.stat(full)[0] & 0x4000:
                 remove_dir(full)
             else:
+                print('Remove: ', full)
                 os.remove(full)
         except Exception as e:
             print("remove error:", e)
 
     try:
+        print('Remove: ', path)
         os.rmdir(path)
     except Exception as e:
         print("rmdir error:", e)
@@ -92,8 +94,7 @@ def dir_menu(path):
 
         print("1 create file")
         print("2 create dir")
-        print("3 copy to")
-        print("4 move to")
+        print("3 copy to | 4 move to")
         print("5 rename")
         print("6 remove")
         print(pad_line("> 1-6 q"))

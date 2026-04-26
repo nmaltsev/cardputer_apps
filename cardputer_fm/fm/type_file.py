@@ -24,8 +24,8 @@ def type_file(path):
         start = page * page_size
         end = start + page_size
         chunk = lines[start:end]
-
-        print(pad_line("F: {}".format(path), width=39))
+        print()
+        print(pad_line("b {}".format(path), width=39))
 
         for i in range(page_size):
             if i < len(chunk):
@@ -33,7 +33,7 @@ def type_file(path):
             else:
                 print()  # empty line
 
-        print(pad_line("? <b f> q [mezw] p=" + str(page), width=39), end='')
+        print(pad_line("f q,m,ezw p=" + str(page), width=39), end='')
 
         key = get_key()
 
