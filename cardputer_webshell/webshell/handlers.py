@@ -43,15 +43,19 @@ def get_dir_handler(request):
             full = target.rstrip("/") + "/" + name
             resource_type = 1
             filesize = 0
+            ctime = None
+            mtime = None
             try:
                 stats = os.stat(full)
                 filesize = stats[6]
                 if stats[0] & 0x4000:
                     resource_type = 2
+                ctime = stats[8] if len(stats) > 8 else stats[9]
+                mtime = stats[9] if len(stats) > 9 else stats[8]
             except:
                 pass
 
-            result.append([name, resource_type, filesize])
+            result.append([name, resource_type, filesize, ctime, mtime])
 
         # TODO define json_response
         import json
@@ -152,6 +156,26 @@ def upload_handler(request):
     except Exception as e:
         return http_response(str(e).encode(), status=b"500 Internal Server Error")
 
+# TODO move in helpers
+def remove_recursive(path):
+    try:
+        st = os.stat(path)
+
+        # directory check
+        if st[0] & 0x4000:
+            for name in os.listdir(path):
+                full = path.rstrip("/") + "/" + name
+                try:
+                    remove_recursive(full)
+                except:
+                    pass
+            os.rmdir(path)
+        else:
+            os.remove(path)
+
+    except Exception as e:
+        raise e
+
 def delete_handler(request):
     method, full_path = parse_request_line(request)
     path, params = parse_query(full_path)
@@ -162,25 +186,11 @@ def delete_handler(request):
 
     target = target.decode()
 
-    # TODO define a function for recresivly removing directories
     try:
-        st = os.stat(target)
-
-        if st[0] & 0x4000:
-            for name in os.listdir(target):
-                try:
-                    os.remove(target.rstrip("/") + "/" + name)
-                except:
-                    pass
-            os.rmdir(target)
-        else:
-            os.remove(target)
-
+        remove_recursive(target)
         return http_response(b"Deleted")
-
     except Exception as e:
         return http_response(str(e).encode(), status=b"500 Internal Server Error")
-
 
 def ui_handler(request):
     html = b"""HTTP/1.1 200 OK\r
@@ -231,10 +241,10 @@ button:hover {
 }
 
 #list {
-    height: 50vh;
+    max-height: 50vh;
     overflow: auto;
     display: grid;
-    grid-template-columns: 40px 1fr 100px;
+    grid-template-columns: 40px 1fr 100px 140px 140px 80px 80px;
     gap: 5px;
     margin-top: 10px;
 }
@@ -252,6 +262,10 @@ button:hover {
 #list div:nth-child(3n+2):hover {
     text-decoration: underline;
 }
+.header {
+    font-weight: bold;
+    background: #eee;
+}
 
 .icon-dir {
     color: green;
@@ -262,9 +276,19 @@ button:hover {
     color: #555;
 }
 
-#fileForm {
+#fileForm[popover] {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 600px;
     max-width: 90vw;
+    z-index: 1001;
+    border-radius: 10px;
+}
+
+#fileForm::backdrop {
+    background: rgba(0,0,0,0.5);
 }
 
 textarea {
@@ -286,6 +310,11 @@ textarea {
 <form onsubmit="event.preventDefault(); listDir();">
     <fieldset>
         <legend>File Explorer</legend>
+        <fieldset>
+            <legend>Upload File</legend>
+            <input type="file" id="upload_file">
+            <button onclick="uploadFile()">Upload</button>
+        </fieldset>
         <div>
             <input id="path" value="/" style="width:300px">
             <button type="submit">List</button>
@@ -335,20 +364,28 @@ async function listDir() {
     if (!res.ok) throw new Error("HTTP " + res.status);
 
     let files = await res.json();
-
     let list = document.getElementById("list");
     list.innerHTML = "";
+
+    // header row
+    ["", "Name", "Size", "Created", "Modified", "Download", "Delete"].forEach(h => {
+        let el = cr('div', 'class', 'header', 'textContent', h);
+        list.appendChild(el);
+    });
 
     files.forEach(item => {
         let name = item[0];
         let type = item[1];
         let sizeVal = item[2] || 0;
-
-        let icon = cr('div', 'class', (type==2 ? 'icon-dir' : 'icon-file'), 'textContent', (type==2 ? "📁" : "📄"));
-        let link = cr('div', 'textContent', name);
-        let size = cr('div', 'textContent', sizeVal + ' B');
+        let ctime = item[3] ? new Date(item[3]*1000).toLocaleString() : "-";
+        let mtime = item[4] ? new Date(item[4]*1000).toLocaleString() : "-";
 
         let full = (path.endsWith("/") ? path : path + "/") + name;
+
+        let icon = cr('div', 'class', (type==2 ? 'icon-dir' : 'icon-file'),
+            'textContent', (type==2 ? "📁" : "📄"));
+
+        let link = cr('div', 'textContent', name);
 
         if (type == 2) {
             link.onclick = () => {
@@ -356,19 +393,42 @@ async function listDir() {
                 listDir();
             };
         } else {
-            // Fixed popover opening
             link.setAttribute('popovertarget', 'fileForm');
             link.onclick = () => {
                 document.getElementById("file_path").value = full;
-                // Explicitly show the popover (this is the missing piece)
                 document.getElementById("fileForm").showPopover();
             };
         }
 
+        let size = cr('div', 'textContent', sizeVal + ' B');
+        let c = cr('div', 'textContent', ctime);
+        let m = cr('div', 'textContent', mtime);
+
+        let download = cr('button', 'textContent', '⬇');
+        download.onclick = () => {
+            window.location = "/file?path=" + encodeURIComponent(full);
+        };
+
+        let del = cr('button', 'textContent', '🗑');
+        del.onclick = async () => {
+            if (!confirm("Delete " + full + " ?")) return;
+            let res = await fetch("/delete?path=" + encodeURIComponent(full));
+            if (!res.ok) {
+                alert("Delete failed");
+            } else {
+                listDir();
+            }
+        };
+
         list.appendChild(icon);
         list.appendChild(link);
         list.appendChild(size);
+        list.appendChild(c);
+        list.appendChild(m);
+        list.appendChild(download);
+        list.appendChild(del);
     });
+
   } catch(e) {
     alert("Error loading directory: " + String(e));
   }
@@ -385,6 +445,32 @@ async function loadFile() {
     document.getElementById("editor").value = text;
   } catch (e) {
     alert("Error loading file: " + e);
+  }
+}
+async function uploadFile() {
+  try {
+    let fileInput = document.getElementById("upload_file");
+    if (!fileInput.files.length) return alert("No file selected");
+
+    let path = document.getElementById("path").value;
+    let file = fileInput.files[0];
+
+    let form = new FormData();
+    form.append("path", (path.endsWith("/") ? path : path + "/") + file.name);
+    form.append("file", file);
+
+    let res = await fetch("/upload", {
+        method: "POST",
+        body: form
+    });
+
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    alert("Uploaded");
+    listDir();
+
+  } catch (e) {
+    alert("Upload failed: " + e);
   }
 }
 
