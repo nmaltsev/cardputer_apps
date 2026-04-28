@@ -33,6 +33,8 @@ def text_editor(path):
             lines = [l.rstrip("\n") for l in f.readlines()]
     except:
         lines = [""]
+    if not lines:
+        lines = [""]
     cx = 0 # cursor x
     cy = 0 # cursor y
     row_offset = 0

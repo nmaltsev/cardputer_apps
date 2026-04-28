@@ -78,8 +78,7 @@ def file_menu(path):
         print("1 rename")
         print("2 append line")
         print("3 delete last line")
-        print("4 remove file")
-        print("5 copy file")
+        print("4 remove file | 5 copy file")
         print(pad_line("> 1-5 q"))
 
         key = get_key()

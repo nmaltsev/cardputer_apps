@@ -64,6 +64,9 @@ def text_editor(path):
             lines = [l.rstrip("\n") for l in f.readlines()]
     except:
         lines = [""]
+    
+    if not lines:
+        lines = [""]
 
     cx = 0  # cursor x (column in current line)
     cy = 0  # cursor y (line index)
