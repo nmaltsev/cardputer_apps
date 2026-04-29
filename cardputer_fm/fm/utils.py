@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 
 # ---------- KEY INPUT ----------
 def get_key():
@@ -58,3 +59,45 @@ def is_text_file(path):
             return True
 
     return False
+
+def open_settings():
+    try:
+        # Detect current script directory
+        try:
+            base_dir = os.path.dirname(__file__)
+            if not base_dir:
+                base_dir = "/"
+        except:
+            base_dir = "/"
+
+        settings_path = base_dir + "/settings.json"
+
+        # Create default settings if missing
+        if "settings.json" not in os.listdir(base_dir):
+            default_settings = {
+                "wifi": {
+                    "known": [
+                        {"ssid": "", "password": ""}
+                    ],
+                    "default": "ssid"
+                },
+                "brightness": 0.3
+            }
+
+            try:
+                with open(settings_path, "w") as f:
+                    json.dump(default_settings, f)
+                print("Created settings.json")
+            except Exception as e:
+                print("Error creating settings.json:", e)
+                return
+
+        # Open editor
+        try:
+            from .editor import text_editor
+            text_editor(settings_path)
+        except Exception as e:
+            print("Error opening editor:", e)
+
+    except Exception as e:
+        print("Settings error:", e)

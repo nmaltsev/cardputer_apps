@@ -7,7 +7,7 @@ except ImportError:
 import os
 import time
 
-from .utils import pad_line, get_key
+from .utils import pad_line, get_key, open_settings
 from .utils_date_sync import wifi_get_and_print_datetime 
 from .utils_date import prompt_and_set_date
 # from .sdcard_cp import SDCard
@@ -177,20 +177,6 @@ def mount_sd(slot, mount_point):
         except:
             pass
 
-    # finally:
-    #     # ---------- FIX 2: Clean up only on failure ----------
-    #     # Prevents the "SD_CS in use" error on the next attempt after a no-card failure.
-    #     if not mounted:
-    #         if cs is not None:
-    #             try:
-    #                 cs.deinit()   # releases the pin claim
-    #             except:
-    #                 pass
-    #         if spi is not None:
-    #             try:
-    #                 spi.unlock()  # release SPI lock if it was acquired
-    #             except (AttributeError, RuntimeError):
-    #                 pass
 
 def unmount_sd(path):
     if not HAS_BOARD:
@@ -233,7 +219,7 @@ def device_menu():
         print("1 mount sd cards")
         print("2 unmount sd cards")
         print("3 adjust brightness")
-        print("4 set date; 5 sync date")
+        print("4 set date; 5 sync date; 7 open settings")
 
 
         print(pad_line("> 1-3 q"))
@@ -323,3 +309,6 @@ def device_menu():
             # print(supervisor.runtime.display.height)
             # print('Dispaly: ', supervisor.runtime.display)
             save_board_pins('/usr/board_pins.txt')
+
+        elif key == '7':
+            open_settings()
