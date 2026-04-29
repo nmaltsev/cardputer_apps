@@ -36,3 +36,6 @@ FR copy file dialog:
 3. Must process ../../
 
 FR add an option to open hex_view in file_menu
+
+TODO test
+from usr.fm.dir_menu import copy_dir

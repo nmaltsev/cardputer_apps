@@ -1,0 +1,9 @@
+{
+    "wifi": {
+        "known": [
+            {"ssid": "", "password": ""}
+        ],
+        "default": "ssid"
+    },
+    "brightness": 0.3
+}

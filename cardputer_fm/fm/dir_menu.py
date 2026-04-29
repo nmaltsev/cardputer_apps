@@ -17,34 +17,39 @@ def format_time(ts):
     except:
         return "N/A"
 
-
-# ---------- FILE OPS (NO SHUTIL) ----------
 def copy_file(src, dst):
     print("CopyFile ", src, " to ", dst)
     with open(src, "rb") as fsrc:
-        with open(dst, "wb") as fdst:
+        with open(dst, "wb") as fdst:  # "wb" already overwrites
             while True:
                 chunk = fsrc.read(512)
                 if not chunk:
                     break
                 fdst.write(chunk)
 
+def is_dir(path):
+    return os.stat(path)[0] & 0x4000
 
 def copy_dir(src, dst):
     print("CopyDir ", src, " to ", dst)
-    os.mkdir(dst)
+
+    # Create directory only if it doesn't exist
+    try:
+        os.mkdir(dst)
+    except OSError:
+        pass  # already exists
+
     for name in os.listdir(src):
         s = src.rstrip("/") + "/" + name
         d = dst.rstrip("/") + "/" + name
 
         try:
-            if os.stat(s)[0] & 0x4000:  # directory
+            if is_dir(s):
                 copy_dir(s, d)
             else:
                 copy_file(s, d)
         except Exception as e:
             print("copy error:", e)
-
 
 def remove_dir(path):
     for name in os.listdir(path):

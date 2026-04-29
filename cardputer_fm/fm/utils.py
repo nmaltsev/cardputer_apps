@@ -30,7 +30,8 @@ def wrap_line(line, width=37):
 
 def clear():
 	# sys.stderr.write("\x1b[2J\x1b[H")
-    print(chr(27)+"[2J")
+    # print(chr(27)+"[2J")
+    print("\x1b[2J\x1b[H", end='')
 
 # ---------- BINARY DETECTION ----------
 def is_text_file(path):
