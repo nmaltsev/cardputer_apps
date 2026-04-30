@@ -254,12 +254,12 @@ button:hover {
     border-bottom: 1px solid #eee;
 }
 
-#list div:nth-child(3n+2) {
+#list div:nth-child(7n+2) {
     cursor: pointer;
     color: #0077cc;
 }
 
-#list div:nth-child(3n+2):hover {
+#list div:nth-child(7n+2):hover {
     text-decoration: underline;
 }
 .header {
@@ -396,6 +396,7 @@ async function listDir() {
             link.setAttribute('popovertarget', 'fileForm');
             link.onclick = () => {
                 document.getElementById("file_path").value = full;
+                document.getElementById("editor").value = '';
                 document.getElementById("fileForm").showPopover();
             };
         }
@@ -412,7 +413,7 @@ async function listDir() {
         let del = cr('button', 'textContent', '🗑');
         del.onclick = async () => {
             if (!confirm("Delete " + full + " ?")) return;
-            let res = await fetch("/delete?path=" + encodeURIComponent(full));
+            let res = await fetch("/delete?path=" + encodeURIComponent(full), { method: "POST"});
             if (!res.ok) {
                 alert("Delete failed");
             } else {

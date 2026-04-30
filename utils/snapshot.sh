@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
 # Usage: ./snapshot.sh /path/to/python/project
+# source utils/snapshot.sh ./cardputer_webshell/webshell
 
-set -euo pipefail
+#set -euo pipefail
 
 # Check argument
 if [ "$#" -ne 1 ]; then

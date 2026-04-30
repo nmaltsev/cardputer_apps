@@ -24,7 +24,29 @@ def recv_all(client):
     buffer = bytearray(512)
     data = b""
 
-    while True:
+    # ---- read headers ----
+    while b"\r\n\r\n" not in data:
+        try:
+            n = client.recv_into(buffer)
+        except OSError:
+            return data
+
+        if n <= 0:
+            return data
+
+        data += bytes(buffer[:n])
+
+    # ---- parse content-length ----
+    headers, rest = data.split(b"\r\n\r\n", 1)
+
+    content_length = 0
+    for line in headers.split(b"\r\n"):
+        if line.lower().startswith(b"content-length:"):
+            content_length = int(line.split(b":")[1].strip())
+            break
+
+    # ---- read remaining body ----
+    while len(rest) < content_length:
         try:
             n = client.recv_into(buffer)
         except OSError:
@@ -33,12 +55,9 @@ def recv_all(client):
         if n <= 0:
             break
 
-        data += bytes(buffer[:n])
+        rest += bytes(buffer[:n])
 
-        if b"\r\n\r\n" in data:
-            break
-
-    return data
+    return headers + b"\r\n\r\n" + rest
 
 def parse_request_line(req: bytes):
     line_end = req.find(b"\r\n")
