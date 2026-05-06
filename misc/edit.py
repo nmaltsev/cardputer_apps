@@ -10,30 +10,43 @@ def fill(text, max_width):
 
 view_box1 = (5,5,40, 10) # x,y, w,h (immutable!)
 
-# --- NEW: document + viewport state ---
-doc_lines = [""]  # full document
-view_offset = 0    # first visible line index in doc
+# --- DOCUMENT MODEL ---
+doc_lines = [""]
+view_offset = 0
 
-# --- UPDATED: render using buffer ---
-def fill_view_box(view_box, buffer):
+# --- WRAPPING ---
+def build_visual_lines():
+    visual = []  # [(doc_y, start_idx, text_segment)]
+    width = view_box1[2]
+
+    for doc_y, line in enumerate(doc_lines):
+        if line == "":
+            visual.append((doc_y, 0, ""))
+            continue
+
+        start = 0
+        while True:
+            segment = line[start:start + width]
+            visual.append((doc_y, start, segment))
+            if start + width >= len(line):
+                break
+            start += width
+
+    return visual
+
+# --- RENDER ---
+def fill_view_box(view_box, visual_lines):
     for i in range(view_box[3]):
         move_cursor(view_box[0], view_box[1] + i)
-        line = buffer[i] if i < len(buffer) else ""
-        print(fill(line, view_box[2]), end='')
+        idx = view_offset + i
+        if idx < len(visual_lines):
+            _, _, text = visual_lines[idx]
+        else:
+            text = ""
+        print(fill(text, view_box[2]), end='')
     print()
 
-# --- NEW: sync document -> buffer ---
-def build_buffer():
-    buffer = []
-    for i in range(view_box1[3]):
-        idx = view_offset + i
-        if idx < len(doc_lines):
-            buffer.append(doc_lines[idx])
-        else:
-            buffer.append("")
-    return buffer
-
-# --- NEW: cursor drawing ---
+# --- CURSOR ---
 def draw_cursor(cx, cy):
     move_cursor(view_box1[0] + cx, view_box1[1] + cy)
     print('_', end='')
@@ -44,7 +57,7 @@ def main():
 
     prev = None
     EDIT_MODE = False
-    cursor_offset = [0,0] # dx, dy
+    cursor_offset = [0,0]
 
     while True:
         key = get_key()
@@ -60,97 +73,106 @@ def main():
 
         if key == 'CTRL_P':
             EDIT_MODE = True
-            buffer = build_buffer()
-            fill_view_box(view_box1, buffer)
             cursor_offset = [0,0]
-            draw_cursor(*cursor_offset)
-            print()
 
         if EDIT_MODE:
+            visual = build_visual_lines()
+
             cx, cy = cursor_offset
-            doc_y = view_offset + cy
+            vis_idx = view_offset + cy
 
-            # ensure line exists
-            while doc_y >= len(doc_lines):
-                doc_lines.append("")
+            if vis_idx >= len(visual):
+                vis_idx = len(visual) - 1
 
+            doc_y, start_idx, segment = visual[vis_idx]
             line = doc_lines[doc_y]
+            real_x = start_idx + cx
 
-            # --- TEXT INPUT ---
+            # --- INPUT ---
             if len(key) == 1:
-                line = line[:cx] + key + line[cx:]
+                line = line[:real_x] + key + line[real_x:]
                 doc_lines[doc_y] = line
-                cx += 1
+                real_x += 1
 
-            # --- ENTER ---
             elif key == 'ENTER':
-                new_line = line[cx:]
-                doc_lines[doc_y] = line[:cx]
+                new_line = line[real_x:]
+                doc_lines[doc_y] = line[:real_x]
                 doc_lines.insert(doc_y + 1, new_line)
-                cx = 0
-                cy += 1
+                doc_y += 1
+                real_x = 0
 
-            # --- BACKSPACE ---
             elif key == 'BACKSPACE':
-                if cx > 0:
-                    line = line[:cx-1] + line[cx:]
+                if real_x > 0:
+                    line = line[:real_x-1] + line[real_x:]
                     doc_lines[doc_y] = line
-                    cx -= 1
+                    real_x -= 1
                 elif doc_y > 0:
                     prev_line = doc_lines[doc_y - 1]
-                    cx = len(prev_line)
+                    real_x = len(prev_line)
                     doc_lines[doc_y - 1] = prev_line + line
                     doc_lines.pop(doc_y)
-                    cy -= 1
+                    doc_y -= 1
 
-            # --- DELETE ---
             elif key == 'DELETE':
-                if cx < len(line):
-                    line = line[:cx] + line[cx+1:]
+                if real_x < len(line):
+                    line = line[:real_x] + line[real_x+1:]
                     doc_lines[doc_y] = line
                 elif doc_y < len(doc_lines) - 1:
                     doc_lines[doc_y] += doc_lines[doc_y + 1]
                     doc_lines.pop(doc_y + 1)
 
-            # --- ARROWS ---
+            # --- NAVIGATION (REAL POSITION FIRST) ---
             elif key == 'LEFT':
-                if cx > 0:
-                    cx -= 1
+                if real_x > 0:
+                    real_x -= 1
                 elif doc_y > 0:
-                    cy -= 1
-                    cx = len(doc_lines[doc_y - 1])
+                    doc_y -= 1
+                    real_x = len(doc_lines[doc_y])
 
             elif key == 'RIGHT':
-                if cx < len(line):
-                    cx += 1
+                if real_x < len(line):
+                    real_x += 1
                 elif doc_y < len(doc_lines) - 1:
-                    cy += 1
-                    cx = 0
+                    doc_y += 1
+                    real_x = 0
 
             elif key == 'UP':
-                if cy > 0:
-                    cy -= 1
-                elif view_offset > 0:
-                    view_offset -= 1
-                cx = min(cx, len(doc_lines[view_offset + cy]))
+                if doc_y > 0:
+                    doc_y -= 1
+                    real_x = min(real_x, len(doc_lines[doc_y]))
 
             elif key == 'DOWN':
-                if cy < view_box1[3] - 1:
-                    cy += 1
-                else:
-                    view_offset += 1
-                if view_offset + cy < len(doc_lines):
-                    cx = min(cx, len(doc_lines[view_offset + cy]))
+                if doc_y < len(doc_lines) - 1:
+                    doc_y += 1
+                    real_x = min(real_x, len(doc_lines[doc_y]))
 
-            # clamp cursor
-            cy = max(0, min(cy, view_box1[3]-1))
-            cx = max(0, cx)
+            # --- REBUILD VISUAL + MAP BACK ---
+            visual = build_visual_lines()
+
+            # find visual position from (doc_y, real_x)
+            new_vis_idx = 0
+            for i, (dy, start, seg) in enumerate(visual):
+                if dy == doc_y and start <= real_x <= start + len(seg):
+                    new_vis_idx = i
+                    break
+
+            # compute cursor inside segment
+            dy, start, seg = visual[new_vis_idx]
+            cx = real_x - start
+            cy = new_vis_idx - view_offset
+
+            # scrolling
+            if cy < 0:
+                view_offset = new_vis_idx
+                cy = 0
+            elif cy >= view_box1[3]:
+                view_offset = new_vis_idx - view_box1[3] + 1
+                cy = view_box1[3] - 1
 
             cursor_offset = [cx, cy]
 
             # --- RENDER ---
-            buffer = build_buffer()
-            fill_view_box(view_box1, buffer)
+            fill_view_box(view_box1, visual)
             draw_cursor(cx, cy)
             print()
 
