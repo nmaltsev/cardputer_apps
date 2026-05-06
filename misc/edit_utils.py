@@ -55,7 +55,7 @@ def get_key():
             # Escape sequences (arrows, etc.)
             if ch == "\x1b":
                 seq = sys.stdin.read(2)
-                print(f"{seq=}")
+                # print(f"{seq=}")
                 mapping = {
                     "[A": 'UP',
                     "[B": 'DOWN',
