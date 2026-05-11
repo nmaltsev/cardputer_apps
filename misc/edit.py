@@ -10,7 +10,7 @@ def fill(text, max_width):
     else:
         return text + '-' * (max_width - len(text))
 
-view_box1 = (5,5,40, 10) # x,y, w,h (immutable!)
+view_box1 = (1,1,40, 10) # x,y, w,h (immutable!)
 
 # --- DOCUMENT MODEL ---
 doc_lines = [""]
@@ -214,7 +214,11 @@ def main():
 
             draw_status(doc_y, real_x, ch)
             draw_cursor(cx, cy)
+            # Why print is necessery for showing cursor defined by draw_cursor()?
+            # Is it possible to type the cursor at the same moment as the character? 
             print()
+            # so the cursor moves to the next line as the first element of the next line
+            # Is it possible to not show the cursor or move it at the draw_cursor position 
 
         prev = key
 
