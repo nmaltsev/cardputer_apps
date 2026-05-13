@@ -1,97 +1,158 @@
-
 import sys
-import os
+import tty
+import termios
+
+# =========================================================
+# BASE KEY MAPPINGS
+# =========================================================
+
+ANSI_KEYS = {
+    "A": "UP",
+    "B": "DOWN",
+    "C": "RIGHT",
+    "D": "LEFT",
+    "H": "HOME",
+    "F": "END",
+}
+
+ANSI_TILDE_KEYS = {
+    "1": "HOME",
+    "2": "INSERT",
+    "3": "DELETE",
+    "4": "END",
+    "5": "PAGE_UP",
+    "6": "PAGE_DOWN",
+    "7": "HOME",
+    "8": "END",
+}
+
+CTRL_KEYS = {
+    "\x03": "CTRL_C",
+    "\x04": "CTRL_D",
+    "\x08": "BACKSPACE",
+    "\x7f": "BACKSPACE",
+    "\r": "ENTER",
+    "\n": "ENTER",
+    "\t": "TAB",
+    "\x1b": "ESC",
+}
+
+# ANSI modifier codes
+# 2=Shift, 3=Alt, 5=Ctrl, 6=Ctrl+Shift ...
+MODIFIERS = {
+    2: "SHIFT",
+    3: "ALT",
+    4: "ALT+SHIFT",
+    5: "CTRL",
+    6: "CTRL+SHIFT",
+    7: "CTRL+ALT",
+    8: "CTRL+ALT+SHIFT",
+}
+
+
+# =========================================================
+# POSIX KEY READER
+# =========================================================
+
+def _read_escape_sequence():
+    """
+    Read full ANSI escape sequence after ESC.
+    """
+    seq = ""
+
+    while True:
+        ch = sys.stdin.read(1)
+        seq += ch
+
+        # ANSI sequences typically end with:
+        # letters or '~'
+        if ch.isalpha() or ch == "~":
+            break
+
+    return seq
+
+
+def _decode_escape_sequence(seq):
+    """
+    Decode ANSI escape sequences.
+    """
+
+    # -----------------------------------------------------
+    # Arrow/Home/End
+    # Example:
+    #   [A
+    #   [1;2D
+    #   [1;5C
+    # -----------------------------------------------------
+
+    if not seq.startswith("["):
+        return "ESC"
+
+    body = seq[1:]
+
+    # Simple arrows: [A
+    if body in ANSI_KEYS:
+        return ANSI_KEYS[body]
+
+    # Modified keys: [1;2D
+    if ";" in body:
+        prefix, rest = body.split(";", 1)
+
+        mod_code = ""
+        key_code = ""
+
+        for ch in rest:
+            if ch.isdigit():
+                mod_code += ch
+            else:
+                key_code += ch
+
+        mod = MODIFIERS.get(int(mod_code), "")
+        key = ANSI_KEYS.get(key_code, key_code)
+
+        return f"{mod}+{key}" if mod else key
+
+    # Navigation keys: [3~
+    if body.endswith("~"):
+        code = body[:-1]
+        return ANSI_TILDE_KEYS.get(code, code)
+
+    return seq
+
+
+# =========================================================
+# MAIN API
+# =========================================================
 
 def get_key():
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+
     try:
-        # Windows
-        import msvcrt
-        key = msvcrt.getch()
+        tty.setraw(fd)
 
-        # Special keys (arrows, function keys, etc.)
-        if key in (b'\x00', b'\xe0'):
-            key = msvcrt.getch()
-            mapping = {
-                b'H': 'UP',
-                b'P': 'DOWN',
-                b'K': 'LEFT',
-                b'M': 'RIGHT',
-            }
-            return mapping.get(key, '')
+        ch = sys.stdin.read(1)
 
-        # Control keys
-        if key == b'\x03':
-            return 'CTRL_C'
-        if key == b'\x04':
-            return 'CTRL_D'
-        if key == b'\x08':
-            return 'BACKSPACE'
-        if key == b'\r':
-            return 'ENTER'
-        if key == b'\t':
-            return 'TAB'
-        if key == b'\x1b':
-            return 'ESC'
+        # Escape sequence
+        if ch == "\x1b":
+            seq = _read_escape_sequence()
+            return _decode_escape_sequence(seq)
 
-        # Ctrl + letter (ASCII 1–26)
-        if 1 <= ord(key) <= 26:
-            return f'CTRL_{chr(ord(key) + 64)}'
+        # Named control keys
+        if ch in CTRL_KEYS:
+            return CTRL_KEYS[ch]
 
-        return key.decode(errors="ignore")
+        # CTRL+A ... CTRL+Z
+        code = ord(ch)
+        if 1 <= code <= 26:
+            return f"CTRL_{chr(code + 64)}"
 
-    except ImportError:
-        # Unix/Linux/macOS
-        import sys
-        import tty
-        import termios
+        return ch
 
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
-        try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-
-            # Escape sequences (arrows, etc.)
-            if ch == "\x1b":
-                seq = sys.stdin.read(2)
-                # print(f"{seq=}")
-                mapping = {
-                    "[A": 'UP',
-                    "[B": 'DOWN',
-                    "[C": 'RIGHT',
-                    "[D": 'LEFT',
-                    '[6': 'PAGE_DOWN',
-                    '[5': 'PAGE_UP',
-                    '[1': 'HOME',
-                    '[4': 'END',
-                    '[2': 'INSERT',
-                    '[3': 'DELETE',
-                }
-                if seq in mapping:
-                    return mapping[seq]
-                return 'ESC'
-
-            # Control keys
-            if ch == '\x03':
-                return 'CTRL_C'
-            if ch == '\x04':
-                return 'CTRL_D'
-            if ch == '\x7f':
-                return 'BACKSPACE'
-            if ch in ('\r', '\n'):
-                return 'ENTER'
-            if ch == '\t':
-                return 'TAB'
-
-            # Ctrl + letter
-            if 1 <= ord(ch) <= 26:
-                return f'CTRL_{chr(ord(ch) + 64)}'
-
-            return ch
-
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            
 # ---------- TERMINAL ----------
 def clear():
     sys.stdout.write("\x1b[2J\x1b[H")
