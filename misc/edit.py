@@ -1,6 +1,3 @@
-# edit.py
-
-# --- ORIGINAL IMPORTS (preserved) ---
 from edit_utils import get_key, clear, move_cursor
 import sys
 import os
@@ -93,24 +90,17 @@ def fill_view_box(view_box, visual_lines, cursor=None):
 
 
 # --- STATUS BAR ---
-def draw_status(doc_y, real_x, ch):
-
+def draw_status(doc_y, real_x, ch, path):
     y = view_box1[1] + view_box1[3]
-
     move_cursor(view_box1[0], y)
-
-    status = f"Ln {doc_y+1}, Col {real_x+1} | Char: {repr(ch)}"
-
+    status = f"({doc_y+1}:{real_x+1}) {repr(ch)} {path}"
     print(fill(status, view_box1[2]), end='')
-
     sys.stdout.flush()
 
 
 # --- MAIN ---
 def main():
-
     global view_offset, file_path
-
     clear()
 
     # --- CLI ARG ---
@@ -270,7 +260,7 @@ def main():
                 if real_x < len(doc_lines[doc_y]):
                     ch = doc_lines[doc_y][real_x]
 
-            draw_status(doc_y, real_x, ch)
+            draw_status(doc_y, real_x, ch, file_path)
 
         prev = key
 
