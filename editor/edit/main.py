@@ -5,7 +5,7 @@ import platform
 from .utils import get_key, clear, move_cursor
 from .clipboard import copy_to_clipboard, paste_from_clipboard
 from .file_helpers import load_file, save_file
-from .state import EditorState
+from .state import EditorState, SelectionState
 
 def fill(text, max_width):
     if len(text) >= max_width:
@@ -16,55 +16,8 @@ def fill(text, max_width):
 view_box1 = (1,1,40,10)  # x,y,w,h (immutable!)
 
 
-# --- SELECTION HELPERS ---
-def normalize_selection(state):
-    if not state.selection_anchor or not state.selection_end:
-        return None
-
-    a = state.selection_anchor
-    b = state.selection_end
-
-    if a <= b:
-        return a,b
-
-    return b,a
-
-
-def has_selection(state):
-    r = normalize_selection(state)
-
-    if not r:
-        return False
-    a,b = r
-    return a != b
-
-
-def clear_selection(state):
-    state.selection_active=False
-    state.selection_anchor=None
-    state.selection_end=None
-    state.selection_in_progress=False
-
-
-def begin_selection(state,row,col):
-    if not state.selection_active:
-        state.selection_active=True
-        state.selection_anchor=(row,col)
-
-    state.selection_end=(row,col)
-    state.selection_in_progress=True
-
-
-def update_selection(state, row,col):
-    state.selection_end=(row,col)
-
-
-def finalize_selection(state):
-    state.selection_in_progress=False
-
-
-def get_selected_text(state):
-    r=normalize_selection(state)
+def get_selected_text(state, selectionState):
+    r=selectionState.normalize_selection()
 
     if not r:
         return ""
@@ -86,8 +39,8 @@ def get_selected_text(state):
     return "\n".join(out)
 
 
-def delete_selection(state):
-    r=normalize_selection(state)
+def delete_selection(state, selectionState):
+    r=selectionState.normalize_selection()
 
     if not r:
         return None
@@ -102,7 +55,7 @@ def delete_selection(state):
         last=doc_lines[r2][c2:]
         doc_lines[r1]=first+last
         del doc_lines[r1+1:r2+1]
-    clear_selection(state)
+    selectionState.clear_selection()
     return r1,c1
 
 
@@ -128,8 +81,8 @@ def insert_text(state, row,col,text):
     return insert_pos,len(parts[-1])
 
 
-def replace_selection(state, text):
-    pos=delete_selection(state)
+def replace_selection(state, selectionState, text):
+    pos=delete_selection(state, selectionState)
 
     if pos is None:
         return None
@@ -183,12 +136,12 @@ def fill_view_box(state, view_box, visual_lines, cursor=None):
 
 
 # --- STATUS BAR ---
-def draw_status(state, doc_y,real_x,ch,path):
+def draw_status(state, selectionState, doc_y,real_x,ch,path):
     y=view_box1[1]+view_box1[3]
     move_cursor(view_box1[0],y)
 
-    if has_selection(state):
-        (r1,c1),(r2,c2)=(normalize_selection(state))
+    if selectionState.has_selection():
+        (r1,c1),(r2,c2)=(selectionState.normalize_selection())
 
         status=(
             f"({r1+1},{c1+1},"
@@ -208,6 +161,7 @@ def draw_status(state, doc_y,real_x,ch,path):
 # --- MAIN ---
 def main():
     state=EditorState()
+    selectionState = SelectionState()
     clear()
 
     # --- CLI ARG ---
@@ -220,15 +174,25 @@ def main():
         state.file_path="untitled.txt"
 
     prev=None
-    EDIT_MODE=False
+    EDIT_MODE=True
+    # <<<TODO refactor the code to open the file
     cursor_offset=[0,0]
+    clear()
+    visual=build_visual_lines(state)
+    fill_view_box(state,view_box1,visual,cursor=cursor_offset)
+    vis_idx=state.view_offset+cursor_offset[1]
+    doc_y,start_idx,_=(visual[vis_idx])
+    real_x=start_idx+cursor_offset[0]
+    draw_status(state, selectionState, doc_y, real_x, '', state.file_path)
+    # >>>
+
     while True:
         key=get_key()
         if EDIT_MODE is False:
             print(f"{key=}")
 
         # --- EXIT ---
-        if (key=="CTRL_C" and prev=="CTRL_C"):
+        if (key=="CTRL_Q" and prev=="CTRL_Q"):
             clear()
             break
 
@@ -262,27 +226,27 @@ def main():
             shift_move=key in ('SHIFT+LEFT','SHIFT+RIGHT','SHIFT+UP','SHIFT+DOWN')
 
             if shift_move:
-                if not state.selection_in_progress:
-                    begin_selection(state, doc_y,real_x)
+                if not selectionState.in_progress:
+                    selectionState.begin_selection(doc_y,real_x)
             else:
-                if state.selection_in_progress:
-                    finalize_selection(state)
+                if selectionState.in_progress:
+                    selectionState.finalize_selection()
 
             # ==================================================
             # SELECTION OPERATIONS
             # ==================================================
-            if has_selection(state):
+            if selectionState.has_selection():
                 if key=="CTRL_C":
-                    copy_to_clipboard(get_selected_text(state))
+                    copy_to_clipboard(get_selected_text(state, selectionState))
                     prev=key
                     continue
                 elif key=="CTRL_X":
-                    copy_to_clipboard(get_selected_text(state))
-                    pos=delete_selection(state)
+                    copy_to_clipboard(get_selected_text(state, selectionState))
+                    pos=delete_selection(state, selectionState)
                     if pos:
                         doc_y,real_x=pos
                 elif key in ("DELETE","BACKSPACE"):
-                    pos=delete_selection(state)
+                    pos=delete_selection(state, selectionState)
                     if pos:
                         doc_y,real_x=pos
                 elif len(key)==1:
@@ -291,7 +255,7 @@ def main():
                     if pos:
                         doc_y,real_x=pos
                 elif not shift_move:
-                    clear_selection(state)
+                    selectionState.clear_selection()
 
             # ==================================================
             # INPUT
@@ -299,7 +263,7 @@ def main():
 
             if key=="CTRL_V":
                 text=(paste_from_clipboard())
-                if has_selection(state):
+                if selectionState.has_selection():
                     pos=replace_selection(state,text)
                     if pos:
                         doc_y,real_x=pos
@@ -368,7 +332,7 @@ def main():
                     real_x=min(real_x, len(state.doc_lines[doc_y]))
 
             if shift_move:
-                update_selection(state, doc_y,real_x)
+                selectionState.update_selection(doc_y,real_x)
 
             # ==================================================
             # MAP DOCUMENT POSITION -> VISUAL POSITION
@@ -412,7 +376,7 @@ def main():
                 if (real_x<len(state.doc_lines[doc_y])):
                     ch=state.doc_lines[doc_y][real_x]
 
-            draw_status(state, doc_y, real_x, ch,state.file_path)
+            draw_status(state, selectionState, doc_y, real_x, ch,state.file_path)
 
         prev=key
 
