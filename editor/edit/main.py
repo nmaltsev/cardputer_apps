@@ -130,7 +130,28 @@ def build_visual_lines(state):
 
             start+=width
     return visual
-
+def find_visual_index(visual, doc_y, real_x):
+    if not visual:
+        return 0
+    for i,(dy,start,seg) in enumerate(visual):
+        if dy==doc_y and start <= real_x <= (start+len(seg)):
+            return i
+    return len(visual)-1
+def move_page(state, doc_y, real_x, direction):
+    visual=build_visual_lines(state)
+    if not visual:
+        return 0,0,visual
+    current_vis_idx=find_visual_index(visual, doc_y, real_x)
+    _,current_start,_=visual[current_vis_idx]
+    cx=real_x-current_start
+    target_vis_idx=current_vis_idx + (direction * view_box1[3])
+    if target_vis_idx < 0:
+        target_vis_idx = 0
+    if target_vis_idx >= len(visual):
+        target_vis_idx = len(visual)-1
+    target_dy,target_start,_=visual[target_vis_idx]
+    target_real_x=min(target_start+cx, len(state.doc_lines[target_dy]))
+    return target_dy,target_real_x,visual
 
 # --- RENDER ---
 def fill_view_box(state, view_box, visual_lines, cursor=None):
@@ -264,8 +285,9 @@ def main():
             doc_y,start_idx,segment=(visual[vis_idx])
             line=state.doc_lines[doc_y]
             real_x=start_idx+cx
-
-            shift_move=key in ('SHIFT+LEFT','SHIFT+RIGHT','SHIFT+UP','SHIFT+DOWN')
+            
+            # TODO SHIFT+PAGE_DOWN/SHIFT+PAGE_UP do not work
+            shift_move=key in ('SHIFT+LEFT','SHIFT+RIGHT','SHIFT+UP','SHIFT+DOWN', 'SHIFT+PAGE_DOWN', 'SHIFT+PAGE_UP', 'SHIFT+HOME', 'SHIFT+END')
 
             if shift_move:
                 if not selectionState.in_progress:
@@ -388,6 +410,16 @@ def main():
                 if (doc_y < len(state.doc_lines)-1):
                     doc_y+=1
                     real_x=min(real_x, len(state.doc_lines[doc_y]))
+
+             # --- HOME ---
+            elif key in ("HOME","SHIFT+HOME"):
+                real_x=0
+            elif key in ("END","SHIFT+END"):
+                real_x=len(state.doc_lines[doc_y])
+            elif key in ("PAGE_DOWN", "SHIFT+PAGE_DOWN"):
+                doc_y,real_x,visual=move_page(state, doc_y, real_x, 1)
+            elif key in ("PAGE_UP", "SHIFT+PAGE_UP"):
+                doc_y,real_x,visual=move_page(state, doc_y, real_x, -1)
 
             if shift_move:
                 selectionState.update_selection(doc_y,real_x)
