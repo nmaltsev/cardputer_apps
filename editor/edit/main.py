@@ -30,7 +30,7 @@ def fill(text, max_width):
     else:
         return text + '-' * (max_width - len(text))
 
-view_box1 = (1,1,40,10)  # x,y,w,h (immutable!)
+view_box1 = (1,1,50,20)  # x,y,w,h (immutable!)
 
 
 def get_selected_text(state, selectionState):
