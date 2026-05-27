@@ -7,6 +7,23 @@ from .clipboard import copy_to_clipboard, paste_from_clipboard
 from .file_helpers import load_file, save_file
 from .state import EditorState, SelectionState
 
+from enum import Enum
+
+class MODE(Enum):
+    EDIT = 0
+    LOG = 1
+    MODAL = 2
+
+USE_TAB=False
+TAB_SIZE=2
+
+
+def get_tab():
+    if USE_TAB:
+        return "\t"
+    return " " * TAB_SIZE
+
+
 def fill(text, max_width):
     if len(text) >= max_width:
         return text[0:max_width]
@@ -134,29 +151,30 @@ def fill_view_box(state, view_box, visual_lines, cursor=None):
         print(fill(text, view_box[2]), end='')
     sys.stdout.flush()
 
+def get_status(selectionState, doc_y, real_x, ch, path):
+    """
+    Returns the status bar content for Edit mode.
 
-# --- STATUS BAR ---
-def draw_status(state, selectionState, doc_y,real_x,ch,path):
-    y=view_box1[1]+view_box1[3]
-    move_cursor(view_box1[0],y)
-
+    The status bar displays:
+    - the current file name
+    - an asterisk (*) if the file has unsaved changes
+    - the current cursor position or active selection location
+    - the character at the current cursor position
+    """
     if selectionState.has_selection():
-        (r1,c1),(r2,c2)=(selectionState.normalize_selection())
+        (r1,c1),(r2,c2) = selectionState.normalize_selection()
 
-        status=(
-            f"({r1+1},{c1+1},"
-            f"{r2+1},{c2+1}) "
-            f"{path}"
-        )
+        return f"({r1+1},{c1+1},{r2+1},{c2+1}) {path}"
     else:
-        status=(
-            f"({doc_y+1}:{real_x+1}) "
-            f"{repr(ch)} "
-            f"{path}"
-        )
-    print(fill(status,view_box1[2]),end='')
-    sys.stdout.flush()
+        return f"({doc_y+1}:{real_x+1}) {repr(ch)} {path}"
 
+def print_status(message):
+    # TODO paramtrize view_box
+    y=view_box1[1]+view_box1[3]
+    move_cursor(view_box1[0], y)
+    print(fill(message, view_box1[2]), end='')
+    sys.stdout.flush()
+    
 
 # --- MAIN ---
 def main():
@@ -174,7 +192,8 @@ def main():
         state.file_path="untitled.txt"
 
     prev=None
-    EDIT_MODE=True
+    mode=MODE.EDIT
+    modal_id = None
     # <<<TODO refactor the code to open the file
     cursor_offset=[0,0]
     clear()
@@ -183,16 +202,36 @@ def main():
     vis_idx=state.view_offset+cursor_offset[1]
     doc_y,start_idx,_=(visual[vis_idx])
     real_x=start_idx+cursor_offset[0]
-    draw_status(state, selectionState, doc_y, real_x, '', state.file_path)
+    print_status(get_status(selectionState, doc_y, real_x, '', state.file_path))
     # >>>
 
     while True:
         key=get_key()
-        if EDIT_MODE is False:
+        if mode == MODE.LOG:
             print(f"{key=}")
+            # continue
+        
+        if mode == MODE.MODAL:
+            print(f"{key=} {modal_id=}")
+            if modal_id == 1:
+                if key == 'y':
+                    save_file(state.file_path, state.doc_lines)
+                    state.modified=False
+                clear()
+                break
 
         # --- EXIT ---
         if (key=="CTRL_Q" and prev=="CTRL_Q"):
+            if state.modified:
+                mode = MODE.MODAL
+                modal_id = 1
+                print_status("Save before exit? y/n")
+                continue
+            else:
+                clear()
+                break    
+
+        if (key=="CTRL_Z" and prev=="CTRL_Z"):
             clear()
             break
 
@@ -204,14 +243,16 @@ def main():
         if key=="CTRL_S":
             # save_file(file_path)
             save_file(state.file_path, state.doc_lines)
+            state.modified=False
+            
 
-        # --- ENTER EDIT MODE ---
-        if key=="CTRL_P":
-            EDIT_MODE=True
+        # --- ENTER EDIT mode ---
+        if key=="CTRL_P" and (mode == MODE.EDIT or mode == MODE.LOG):
+            mode = MODE.EDIT if mode == MODE.LOG else MODE.LOG
             cursor_offset=[0,0]
             clear()
 
-        if EDIT_MODE:
+        if mode == MODE.EDIT:
             visual=build_visual_lines(state)
             cx,cy=cursor_offset
             vis_idx=(state.view_offset+cy)
@@ -245,15 +286,18 @@ def main():
                     pos=delete_selection(state, selectionState)
                     if pos:
                         doc_y,real_x=pos
+                        state.modified=True
                 elif key in ("DELETE","BACKSPACE"):
                     pos=delete_selection(state, selectionState)
                     if pos:
                         doc_y,real_x=pos
+                        state.modified=True
                 elif len(key)==1:
                     pos=replace_selection(state, key)
 
                     if pos:
                         doc_y,real_x=pos
+                        state.modified=True
                 elif not shift_move:
                     selectionState.clear_selection()
 
@@ -267,13 +311,23 @@ def main():
                     pos=replace_selection(state,text)
                     if pos:
                         doc_y,real_x=pos
+                        state.modified=True
                 else:
-                    doc_y,real_x=(insert_text(state, doc_y,real_x,text))
+                    doc_y,real_x=insert_text(state, doc_y,real_x,text)
+                    state.modified=True
+            elif key=="TAB":
+                if selectionState.has_selection():
+                    pass
+                    # TODO implement the text shifting
+                else:
+                    doc_y,real_x=insert_text(state,doc_y,real_x,get_tab())
+                    state.modified=True
             elif len(key)==1:
                 line=state.doc_lines[doc_y]
-                line=(line[:real_x]+key+line[real_x:]                )
+                line=(line[:real_x]+key+line[real_x:])
                 state.doc_lines[doc_y]=line
                 real_x+=1
+                state.modified=True
             elif key=="ENTER":
                 line=state.doc_lines[doc_y]
                 new_line=(line[real_x:])
@@ -281,6 +335,7 @@ def main():
                 state.doc_lines.insert(doc_y+1,new_line)
                 doc_y+=1
                 real_x=0
+                state.modified=True
             elif key=="BACKSPACE":
                 line=state.doc_lines[doc_y]
                 if real_x>0:
@@ -293,6 +348,7 @@ def main():
                     state.doc_lines[doc_y-1]=(prev_line+line)
                     state.doc_lines.pop(doc_y)
                     doc_y-=1
+                state.modified=True
             elif key=="DELETE":
                 line=state.doc_lines[doc_y]
                 if real_x<len(line):
@@ -302,6 +358,7 @@ def main():
                 elif (doc_y<len(state.doc_lines)-1):
                     state.doc_lines[doc_y]+=state.doc_lines[doc_y+1]
                     state.doc_lines.pop(doc_y+1)
+                state.modified=True
 
             # ==================================================
             # NAVIGATION
@@ -376,7 +433,7 @@ def main():
                 if (real_x<len(state.doc_lines[doc_y])):
                     ch=state.doc_lines[doc_y][real_x]
 
-            draw_status(state, selectionState, doc_y, real_x, ch,state.file_path)
+            print_status(get_status(selectionState, doc_y, real_x, ch,state.file_path + ('*' if state.modified else '')))
 
         prev=key
 

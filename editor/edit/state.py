@@ -3,13 +3,7 @@ class EditorState:
         self.doc_lines = [""]
         self.view_offset = 0
         self.file_path = None
-
-        # self.selection_active = False
-        # self.selection_anchor = None
-        # self.selection_end = None
-        # self.selection_in_progress = False
-
-# TODO define selection State class with methods
+        self.modified = False
 
 class SelectionState:
     def __init__(self):
@@ -53,10 +47,8 @@ class SelectionState:
         self.end=(row,col)
         self.in_progress=True
 
-
     def update_selection(self, row,col):
         self.end=(row,col)
-
 
     def finalize_selection(self):
         self.in_progress=False
