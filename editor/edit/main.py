@@ -14,6 +14,7 @@ class MODE(Enum):
     LOG = 1
     MODAL = 2
 
+# TODO provide the settings to the main() function throught the argument
 USE_TAB=False
 TAB_SIZE=2
 
@@ -28,7 +29,7 @@ def fill(text, max_width):
     if len(text) >= max_width:
         return text[0:max_width]
     else:
-        return text + '-' * (max_width - len(text))
+        return text + ' ' * (max_width - len(text))
 
 view_box1 = (1,1,50,20)  # x,y,w,h (immutable!)
 
