@@ -204,6 +204,9 @@ def main():
         key = get_key()
         if mode == MODE.LOG:
             print(f"{key=}")
+            if (key == "CTRL_T" and prev == "CTRL_T"):
+                size = os.get_terminal_size()
+                print(f'columns: {size.columns} lines: {size.lines}')
         if mode == MODE.MODAL:
             print(f"{key=} {modal_id=}")
             if modal_id == 1:
@@ -213,6 +216,7 @@ def main():
                 clear()
                 break
         if (key == "CTRL_Q" and prev == "CTRL_Q"):
+            #  TODO implement here and in edit mode
             if state.modified:
                 mode = MODE.MODAL
                 modal_id = 1
