@@ -12,3 +12,8 @@ FR: Done add support of Page Up, Page Down
 FR: Done.add support of TAB
 
 FR: Done. exit on Ctrl+Q, ask to save the chynages before leaving the application
+
+FR:
+    Add support of CTRL_A
+FR:
+    Recognize: ALT_0-9, ALT_a-z, F1-12
