@@ -7,7 +7,7 @@ FR: refactor the code
 
 FR: Done. add support of HOME, END
 
-FR: add support of Page Up, Page Down
+FR: Done add support of Page Up, Page Down
 
 FR: Done.add support of TAB
 

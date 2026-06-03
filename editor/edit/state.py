@@ -1,5 +1,5 @@
 class EditorState:
-    def __init__(self, use_tab:bool = False, tab_size:int = 2):
+    def __init__(self, use_tab:bool = False, tab_size:int = 2, view_box = (1, 1, 50, 20)):
         self.use_tab = use_tab
         self.tab_size = tab_size
         self.doc_lines = [""]
@@ -7,6 +7,7 @@ class EditorState:
         self.file_path = None
         self.modified = False
         self.cursor_offset = [0, 0]
+        self.view_box = view_box #  (x,y,w,h) immutable
 
     def get_tab(self):
         if self.use_tab:

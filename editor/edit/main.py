@@ -16,19 +16,12 @@ class MODE(Enum):
     TAB_NAV = 4
     TERM = 5
 
-# TODO provide the settings to the main() function throught the argument
-USE_TAB = False
-TAB_SIZE = 2
-def get_tab():
-    if USE_TAB:
-        return "\t"
-    return " " * TAB_SIZE
 def fill(text, max_width):
     if len(text) >= max_width:
         return text[0:max_width]
     else:
         return text + ' ' * (max_width - len(text))
-view_box1 = (1, 1, 50, 20)  # x,y,w,h (immutable!)
+
 def get_selected_text(state, selectionState):
     r = selectionState.normalize_selection()
     if not r:
@@ -81,8 +74,8 @@ def replace_selection(state, selectionState, text):
         return None
     row, col = pos
     return insert_text(state, row, col, text)
-def _unindent_line(line):
-    indent = get_tab()
+def _unindent_line(line, state):
+    indent = state.get_tab()
     if indent == "\t":
         if line.startswith("\t"):
             return line[1:]
@@ -92,7 +85,7 @@ def _unindent_line(line):
     if line.startswith("\t"):
         return line[1:]
     stripped = 0
-    while stripped < TAB_SIZE and stripped < len(line) and line[stripped] == " ":
+    while stripped < state.tab_size and stripped < len(line) and line[stripped] == " ":
         stripped += 1
     return line[stripped:]
 def shift_selected_lines(state, selectionState, direction):
@@ -100,17 +93,17 @@ def shift_selected_lines(state, selectionState, direction):
     if not r:
         return None
     (r1, c1), (r2, c2) = r
-    indent = get_tab()
+    indent = state.get_tab()
     if direction > 0:
         for y in range(r1, r2 + 1):
             state.doc_lines[y] = indent + state.doc_lines[y]
     else:
         for y in range(r1, r2 + 1):
-            state.doc_lines[y] = _unindent_line(state.doc_lines[y])
+            state.doc_lines[y] = _unindent_line(state.doc_lines[y], state)
     return r1, c1
 def build_visual_lines(state):
     visual = []
-    width = view_box1[2]
+    width = state.view_box[2]
     for doc_y, line in enumerate(state.doc_lines):
         if line == "":
             visual.append((doc_y, 0, ""))
@@ -137,7 +130,7 @@ def move_page(state, doc_y, real_x, direction):
     current_vis_idx = find_visual_index(visual, doc_y, real_x)
     _, current_start, _ = visual[current_vis_idx]
     cx = real_x - current_start
-    target_vis_idx = current_vis_idx + (direction * view_box1[3])
+    target_vis_idx = current_vis_idx + (direction * state.view_box[3])
     if target_vis_idx < 0:
         target_vis_idx = 0
     if target_vis_idx >= len(visual):
@@ -176,27 +169,31 @@ def get_status(selectionState, doc_y, real_x, ch, path):
     else:
         return f"({doc_y + 1}:{real_x + 1}) {repr(ch)} {path}"
 
-def print_status(message):
-    # TODO paramtrize view_box
-    y = view_box1[1] + view_box1[3]
-    move_cursor(view_box1[0], y)
-    print(fill(message, view_box1[2]), end='')
+def print_status(state, message):
+    y = state.view_box[1] + state.view_box[3]
+    move_cursor(state.view_box[0], y)
+    print(fill(message, state.view_box[2]), end='')
     sys.stdout.flush()
 
 def initial_set(state, selectionState):
     clear()
     visual = build_visual_lines(state)
-    fill_view_box(state, view_box1, visual, cursor=state.cursor_offset)
+    fill_view_box(state, state.view_box, visual, cursor=state.cursor_offset)
     vis_idx = state.view_offset + state.cursor_offset[1]
     if vis_idx >= len(visual):
         vis_idx = len(visual) - 1
     doc_y, start_idx, _ = (visual[vis_idx])
     real_x = start_idx + state.cursor_offset[0]
-    print_status(get_status(selectionState, doc_y, real_x, '', state.file_path))
+    print_status(state, get_status(selectionState, doc_y, real_x, '', state.file_path))
 
 
 def main(use_tab:bool = False, tab_size:int = 2):
-    state = EditorState(use_tab=use_tab, tab_size=tab_size)
+    size = os.get_terminal_size()
+    state = EditorState(
+        use_tab=use_tab, 
+        tab_size=tab_size, 
+        view_box=(0, 0, size.columns, size.lines)
+    )
     selectionState = SelectionState()
     clear()
     if len(sys.argv) > 1:
@@ -242,7 +239,7 @@ def main(use_tab:bool = False, tab_size:int = 2):
                 if state.modified:
                     mode = MODE.MODAL
                     modal_id = 1
-                    print_status("Save before exit? y/n")
+                    print_status(state, 'Save before exit? y/n')
                     continue
                 else:
                     clear()
@@ -298,16 +295,16 @@ def main(use_tab:bool = False, tab_size:int = 2):
                 if cy < 0:
                     state.view_offset = new_vis_idx
                     cy = 0
-                elif cy >= view_box1[3]:
-                    state.view_offset = new_vis_idx - view_box1[3] + 1
-                    cy = view_box1[3] - 1
+                elif cy >= state.view_box[3]:
+                    state.view_offset = new_vis_idx - state.view_box[3] + 1
+                    cy = state.view_box[3] - 1
                 state.cursor_offset = [cx, cy]
-                fill_view_box(state, view_box1, visual, cursor=(cx, cy))
+                fill_view_box(state, state.view_box, visual, cursor=(cx, cy))
                 ch = ''
                 if (doc_y < len(state.doc_lines)):
                     if (real_x < len(state.doc_lines[doc_y])):
                         ch = state.doc_lines[doc_y][real_x]
-                print_status(get_status(selectionState, doc_y, real_x, ch, state.file_path + ('*' if state.modified else '')))
+                print_status(state, get_status(selectionState, doc_y, real_x, ch, state.file_path + ('*' if state.modified else '')))
                 continue
             if selectionState.has_selection():
                 if key == "CTRL_C":
@@ -346,7 +343,7 @@ def main(use_tab:bool = False, tab_size:int = 2):
                 if selectionState.has_selection():
                     pass
                 else:
-                    doc_y, real_x = insert_text(state, doc_y, real_x, get_tab())
+                    doc_y, real_x = insert_text(state, doc_y, real_x, state.get_tab())
                     state.modified = True
             elif len(key) == 1:
                 line = state.doc_lines[doc_y]
@@ -426,16 +423,16 @@ def main(use_tab:bool = False, tab_size:int = 2):
             if cy < 0:
                 state.view_offset = new_vis_idx
                 cy = 0
-            elif cy >= view_box1[3]:
-                state.view_offset = new_vis_idx - view_box1[3] + 1
-                cy = view_box1[3] - 1
+            elif cy >= state.view_box[3]:
+                state.view_offset = new_vis_idx - state.view_box[3] + 1
+                cy = state.view_box[3] - 1
             state.cursor_offset = [cx, cy]
-            fill_view_box(state, view_box1, visual, cursor=(cx, cy))
+            fill_view_box(state, state.view_box, visual, cursor=(cx, cy))
             ch = ''
             if (doc_y < len(state.doc_lines)):
                 if (real_x < len(state.doc_lines[doc_y])):
                     ch = state.doc_lines[doc_y][real_x]
-            print_status(get_status(selectionState, doc_y, real_x, ch, state.file_path + ('*' if state.modified else '')))
+            print_status(state, get_status(selectionState, doc_y, real_x, ch, state.file_path + ('*' if state.modified else '')))
         prev_key = key
 if __name__ == "__main__":
     main()
