@@ -161,7 +161,7 @@ def print_status(state, message):
     sys.stdout.flush()
 
 def initial_set(state, selectionState):
-    clear()
+    # clear()
     visual = build_visual_lines(state)
     fill_view_box(state, state.view_box, visual, cursor=state.cursor_offset)
     vis_idx = state.view_offset + state.cursor_offset[1]

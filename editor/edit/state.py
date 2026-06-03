@@ -1,3 +1,5 @@
+import os
+
 class EditorState:
     def __init__(self, use_tab:bool = False, tab_size:int = 2, view_box = (1, 1, 50, 20)):
         self.use_tab = use_tab
@@ -61,3 +63,57 @@ class SelectionState:
 
     def finalize_selection(self):
         self.in_progress=False
+
+
+import os
+
+class FileBrowserState:
+    def __init__(self, start_path=None, view_box=(0,0,30,20)):
+        self.current_path = os.path.abspath(
+            start_path or os.getcwd()
+        )
+
+        self.view_box = view_box
+
+        self.items = []
+        self.selected_index = 0
+        self.scroll_offset = 0
+
+        self.refresh()
+
+    def refresh(self):
+        dirs = []
+        files = []
+
+        for name in os.listdir(self.current_path):
+            full = os.path.join(self.current_path, name)
+
+            if os.path.isdir(full):
+                dirs.append(name)
+            else:
+                files.append(name)
+
+        dirs.sort()
+        files.sort()
+
+        self.items = [".."] + dirs + files
+
+        if self.selected_index >= len(self.items):
+            self.selected_index = max(0, len(self.items)-1)
+
+    def current_item(self):
+        if not self.items:
+            return None
+
+        return self.items[self.selected_index]
+
+    def current_full_path(self):
+        item = self.current_item()
+
+        if item == "..":
+            return os.path.dirname(self.current_path)
+
+        return os.path.join(
+            self.current_path,
+            item
+        )
