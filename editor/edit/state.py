@@ -1,9 +1,17 @@
 class EditorState:
-    def __init__(self):
+    def __init__(self, use_tab:bool = False, tab_size:int = 2):
+        self.use_tab = use_tab
+        self.tab_size = tab_size
         self.doc_lines = [""]
         self.view_offset = 0
         self.file_path = None
         self.modified = False
+        self.cursor_offset = [0, 0]
+
+    def get_tab(self):
+        if self.use_tab:
+            return '\t'
+        return " " * self.tab_size
 
 class SelectionState:
     def __init__(self):

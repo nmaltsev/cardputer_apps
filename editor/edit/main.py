@@ -7,10 +7,15 @@ from .clipboard import copy_to_clipboard, paste_from_clipboard
 from .file_helpers import load_file, save_file
 from .state import EditorState, SelectionState
 from enum import Enum
+
 class MODE(Enum):
     EDIT = 0
     LOG = 1
     MODAL = 2
+    FILE_NAV = 3
+    TAB_NAV = 4
+    TERM = 5
+
 # TODO provide the settings to the main() function throught the argument
 USE_TAB = False
 TAB_SIZE = 2
@@ -170,14 +175,28 @@ def get_status(selectionState, doc_y, real_x, ch, path):
         return f"({r1 + 1},{c1 + 1},{r2 + 1},{c2 + 1}) {path}"
     else:
         return f"({doc_y + 1}:{real_x + 1}) {repr(ch)} {path}"
+
 def print_status(message):
     # TODO paramtrize view_box
     y = view_box1[1] + view_box1[3]
     move_cursor(view_box1[0], y)
     print(fill(message, view_box1[2]), end='')
     sys.stdout.flush()
-def main():
-    state = EditorState()
+
+def initial_set(state, selectionState):
+    clear()
+    visual = build_visual_lines(state)
+    fill_view_box(state, view_box1, visual, cursor=state.cursor_offset)
+    vis_idx = state.view_offset + state.cursor_offset[1]
+    if vis_idx >= len(visual):
+        vis_idx = len(visual) - 1
+    doc_y, start_idx, _ = (visual[vis_idx])
+    real_x = start_idx + state.cursor_offset[0]
+    print_status(get_status(selectionState, doc_y, real_x, '', state.file_path))
+
+
+def main(use_tab:bool = False, tab_size:int = 2):
+    state = EditorState(use_tab=use_tab, tab_size=tab_size)
     selectionState = SelectionState()
     clear()
     if len(sys.argv) > 1:
@@ -187,26 +206,26 @@ def main():
         state.file_path = "untitled.txt"
     if not state.doc_lines:
         state.doc_lines = [""]
-    prev = None
+    prev_key = None
     mode = MODE.EDIT
     modal_id = None
-    cursor_offset = [0, 0]
-    clear()
-    visual = build_visual_lines(state)
-    fill_view_box(state, view_box1, visual, cursor=cursor_offset)
-    vis_idx = state.view_offset + cursor_offset[1]
-    if vis_idx >= len(visual):
-        vis_idx = len(visual) - 1
-    doc_y, start_idx, _ = (visual[vis_idx])
-    real_x = start_idx + cursor_offset[0]
-    print_status(get_status(selectionState, doc_y, real_x, '', state.file_path))
+    initial_set(state, selectionState)
     while True:
         key = get_key()
+        if key == "CTRL_P" and (mode == MODE.EDIT or mode == MODE.LOG):
+            mode = MODE.EDIT if mode == MODE.LOG else MODE.LOG
+            clear()
+        if (key == "CTRL_Z" and prev_key == "CTRL_Z"):
+            clear()
+            break
         if mode == MODE.LOG:
             print(f"{key=}")
-            if (key == "CTRL_T" and prev == "CTRL_T"):
+            if (key == "CTRL_T" and prev_key == "CTRL_T"):
                 size = os.get_terminal_size()
                 print(f'columns: {size.columns} lines: {size.lines}')
+            if key == "CTRL_W":
+                clear()
+
         if mode == MODE.MODAL:
             print(f"{key=} {modal_id=}")
             if modal_id == 1:
@@ -215,33 +234,27 @@ def main():
                     state.modified = False
                 clear()
                 break
-        if (key == "CTRL_Q" and prev == "CTRL_Q"):
-            #  TODO implement here and in edit mode
-            if state.modified:
-                mode = MODE.MODAL
-                modal_id = 1
-                print_status("Save before exit? y/n")
-                continue
-            else:
-                clear()
-                break
-        if (key == "CTRL_Z" and prev == "CTRL_Z"):
-            clear()
-            break
-        if key == "CTRL_W":
-            clear()
-        if key == "CTRL_S":
-            save_file(state.file_path, state.doc_lines)
-            state.modified = False
-        if key == "CTRL_P" and (mode == MODE.EDIT or mode == MODE.LOG):
-            mode = MODE.EDIT if mode == MODE.LOG else MODE.LOG
-            cursor_offset = [0, 0]
-            clear()
+        
+        
         if mode == MODE.EDIT:
+            # XXX(key, prev_key, state)
+            if (key == "CTRL_Q" and prev_key == "CTRL_Q"):
+                if state.modified:
+                    mode = MODE.MODAL
+                    modal_id = 1
+                    print_status("Save before exit? y/n")
+                    continue
+                else:
+                    clear()
+                    break
+            if key == "CTRL_S":
+                save_file(state.file_path, state.doc_lines)
+                state.modified = False
+            
             visual = build_visual_lines(state)
             if not visual:
                 visual = [(0, 0, "")]
-            cx, cy = cursor_offset
+            cx, cy = state.cursor_offset
             vis_idx = (state.view_offset + cy)
             if vis_idx >= len(visual):
                 vis_idx = (len(visual) - 1)
@@ -262,10 +275,10 @@ def main():
                     pos = shift_selected_lines(state, selectionState, -1)
                 if pos:
                     state.modified = True
-                prev = key
+                prev_key = key
                 clear()
                 visual = build_visual_lines(state)
-                cx, cy = cursor_offset
+                cx, cy = state.cursor_offset
                 vis_idx = (state.view_offset + cy)
                 if vis_idx >= len(visual):
                     vis_idx = len(visual) - 1
@@ -288,7 +301,7 @@ def main():
                 elif cy >= view_box1[3]:
                     state.view_offset = new_vis_idx - view_box1[3] + 1
                     cy = view_box1[3] - 1
-                cursor_offset = [cx, cy]
+                state.cursor_offset = [cx, cy]
                 fill_view_box(state, view_box1, visual, cursor=(cx, cy))
                 ch = ''
                 if (doc_y < len(state.doc_lines)):
@@ -299,7 +312,7 @@ def main():
             if selectionState.has_selection():
                 if key == "CTRL_C":
                     copy_to_clipboard(get_selected_text(state, selectionState))
-                    prev = key
+                    prev_key = key
                     continue
                 elif key == "CTRL_X":
                     copy_to_clipboard(get_selected_text(state, selectionState))
@@ -356,9 +369,9 @@ def main():
                     state.doc_lines[doc_y] = line
                     real_x -= 1
                 elif doc_y > 0:
-                    prev_line = state.doc_lines[doc_y - 1]
-                    real_x = len(prev_line)
-                    state.doc_lines[doc_y - 1] = (prev_line + line)
+                    prev_key_line = state.doc_lines[doc_y - 1]
+                    real_x = len(prev_key_line)
+                    state.doc_lines[doc_y - 1] = (prev_key_line + line)
                     state.doc_lines.pop(doc_y)
                     doc_y -= 1
                 state.modified = True
@@ -416,13 +429,13 @@ def main():
             elif cy >= view_box1[3]:
                 state.view_offset = new_vis_idx - view_box1[3] + 1
                 cy = view_box1[3] - 1
-            cursor_offset = [cx, cy]
+            state.cursor_offset = [cx, cy]
             fill_view_box(state, view_box1, visual, cursor=(cx, cy))
             ch = ''
             if (doc_y < len(state.doc_lines)):
                 if (real_x < len(state.doc_lines[doc_y])):
                     ch = state.doc_lines[doc_y][real_x]
             print_status(get_status(selectionState, doc_y, real_x, ch, state.file_path + ('*' if state.modified else '')))
-        prev = key
+        prev_key = key
 if __name__ == "__main__":
     main()
