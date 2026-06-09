@@ -148,8 +148,7 @@ def main():
     while True:
         key = get_key()
 
-        if EDIT_MODE is False:
-            print(f"{key=}")
+        print(f"{key=}")
 
         # --- EXIT ---
         if key == 'CTRL_C' and prev == 'CTRL_C':
@@ -168,6 +167,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except Exception as exc
+    except Exception as exc:
         print('Exception ', exc)
         raise exc
