@@ -1,0 +1,98 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fa;
+    margin: 20px;
+}
+
+fieldset {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: white;
+}
+
+legend {
+    font-weight: bold;
+    padding: 0 10px;
+}
+
+input, textarea, button {
+    font-size: 14px;
+    padding: 6px;
+}
+
+button {
+    cursor: pointer;
+    border-radius: 5px;
+    border: 1px solid #888;
+    background: #eee;
+}
+
+button:hover {
+    background: #ddd;
+}
+
+#list {
+    max-height: 50vh;
+    overflow: auto;
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 140px 140px 80px 80px;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+#list div {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+#list div:nth-child(7n+2) {
+    cursor: pointer;
+    color: #0077cc;
+}
+
+#list div:nth-child(7n+2):hover {
+    text-decoration: underline;
+}
+.header {
+    font-weight: bold;
+    background: #eee;
+}
+
+.icon-dir {
+    color: green;
+    font-weight: bold;
+}
+
+.icon-file {
+    color: #555;
+}
+
+#fileForm[popover] {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    max-width: 90vw;
+    z-index: 1001;
+    border-radius: 10px;
+}
+
+#fileForm::backdrop {
+    background: rgba(0,0,0,0.5);
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+
+.close-btn {
+    float: right;
+    background: #ff5c5c;
+    color: white;
+    border: none;
+}

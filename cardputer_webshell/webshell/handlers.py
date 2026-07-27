@@ -1,13 +1,17 @@
 import os
-from .utils import http_response, parse_request_line, parse_query, url_decode, guess_mime
-# ==== HANDLERS ====
+from .utils import (
+    http_response, parse_request_line, parse_query,
+    url_decode, guess_mime
+)
 
-def stream_file(filepath):
+# ------------------------------------------------------------------
+# Streaming file download (unchanged logic, just cleaner)
+# ------------------------------------------------------------------
+def stream_file(filepath: str):
     try:
         f = open(filepath, "rb")
         mime = guess_mime(filepath)
         filename = filepath.encode()
-
         header = (
             b"HTTP/1.1 200 OK\r\n"
             b"Content-Type: " + mime + b"\r\n"
@@ -15,183 +19,282 @@ def stream_file(filepath):
             b"Cache-Control: no-store\r\n"
             b"Connection: close\r\n\r\n"
         )
-
         return (f, header)
-
     except Exception as e:
         return http_response(str(e).encode(), status=b"500 Internal Server Error")
 
 
+# ------------------------------------------------------------------
+# Simple handlers that do not need a body
+# ------------------------------------------------------------------
 def index_handler(request):
     return http_response(b"Hello, world!\n")
 
+
 def get_debug_handler(request):
+    # request here is only the headers + whatever was already read
     return http_response(request)
+
 
 def get_dir_handler(request):
     method, full_path = parse_request_line(request)
     path, params = parse_query(full_path)
-
     raw = params.get(b"path", b"/")
     target = url_decode(raw).decode()
 
     try:
         items = os.listdir(target)
         result = []
-
         for name in items:
             full = target.rstrip("/") + "/" + name
             resource_type = 1
             filesize = 0
-            ctime = None
-            mtime = None
+            ctime = mtime = None
             try:
                 stats = os.stat(full)
                 filesize = stats[6]
-                if stats[0] & 0x4000:
+                if stats[0] & 0x4000:          # S_IFDIR
                     resource_type = 2
                 ctime = stats[8] if len(stats) > 8 else stats[9]
                 mtime = stats[9] if len(stats) > 9 else stats[8]
-            except:
+            except OSError:
                 pass
-
             result.append([name, resource_type, filesize, ctime, mtime])
 
-        # TODO define json_response
         import json
         return http_response(
             json.dumps(result).encode(),
             content_type=b"application/json"
         )
-
-    except:
+    except OSError:
         return http_response(b"Not Found", status=b"404 Not Found")
+
 
 def get_file_handler(request):
     method, full_path = parse_request_line(request)
     path, params = parse_query(full_path)
-
-    target = params.get(b"path", None)
+    target = params.get(b"path")
     if not target:
         return http_response(b"Missing path", status=b"400 Bad Request")
-
     filepath = url_decode(target).decode()
-
     return stream_file(filepath)
 
-def post_file_handler(request):
-    method, full_path = parse_request_line(request)
-    path, params = parse_query(full_path)
-
-    target = params.get(b"path", None)
-    if not target:
-        return http_response(b"Missing path", status=b"400 Bad Request")
-
-    split = request.find(b"\r\n\r\n")
-    if split == -1:
-        return http_response(b"Invalid request", status=b"400 Bad Request")
-
-    body = request[split + 4:]
-    filepath = url_decode(target).decode()
-
-    try:
-        with open(filepath, "wb") as f:
-            f.write(body)
-        return http_response(b"OK")
-    except Exception as e:
-        return http_response(str(e).encode(), status=b"500 Internal Server Error")
-
-def parse_multipart(request: bytes):
-    header_end = request.find(b"\r\n\r\n")
-    if header_end == -1:
-        return None, None
-
-    headers = request[:header_end]
-    body = request[header_end + 4:]
-
-    boundary = None
-    for line in headers.split(b"\r\n"):
-        if b"Content-Type:" in line and b"multipart/form-data" in line:
-            parts = line.split(b"boundary=")
-            if len(parts) > 1:
-                boundary = b"--" + parts[1].strip()
-                break
-
-    if not boundary:
-        return None, None
-
-    parts = body.split(boundary)
-
-    file_content = None
-    path_value = None
-
-    for part in parts:
-        if b"Content-Disposition" not in part:
-            continue
-
-        header_end = part.find(b"\r\n\r\n")
-        if header_end == -1:
-            continue
-
-        part_headers = part[:header_end]
-        part_body = part[header_end + 4:].rstrip(b"\r\n")
-
-        if b'name="path"' in part_headers:
-            path_value = part_body
-        elif b'name="file"' in part_headers:
-            file_content = part_body
-
-    return path_value, file_content
-
-def upload_handler(request):
-    path, content = parse_multipart(request)
-
-    if not path or content is None:
-        return http_response(b"Invalid upload", status=b"400 Bad Request")
-
-    try:
-        with open(path.decode(), "wb") as f:
-            f.write(content)
-        return http_response(b"Upload OK")
-    except Exception as e:
-        return http_response(str(e).encode(), status=b"500 Internal Server Error")
-
-# TODO move in helpers
-def remove_recursive(path):
-    try:
-        st = os.stat(path)
-
-        # directory check
-        if st[0] & 0x4000:
-            for name in os.listdir(path):
-                full = path.rstrip("/") + "/" + name
-                try:
-                    remove_recursive(full)
-                except:
-                    pass
-            os.rmdir(path)
-        else:
-            os.remove(path)
-
-    except Exception as e:
-        raise e
 
 def delete_handler(request):
     method, full_path = parse_request_line(request)
     path, params = parse_query(full_path)
-
-    target = params.get(b"path", None)
+    target = params.get(b"path")
     if not target:
         return http_response(b"Missing path", status=b"400 Bad Request")
-
-    target = target.decode()
-
+    target = url_decode(target).decode()
     try:
         remove_recursive(target)
         return http_response(b"Deleted")
     except Exception as e:
         return http_response(str(e).encode(), status=b"500 Internal Server Error")
 
+
+def remove_recursive(path):
+    st = os.stat(path)
+    if st[0] & 0x4000:                       # directory
+        for name in os.listdir(path):
+            remove_recursive(path.rstrip("/") + "/" + name)
+        os.rmdir(path)
+    else:
+        os.remove(path)
+
+
+# ------------------------------------------------------------------
+# Body-streaming handlers
+# These are called from the server after headers have been parsed.
+# They receive the client socket + already-read leftover body bytes
+# and must consume the remaining Content-Length themselves.
+# ------------------------------------------------------------------
+def post_file_handler_stream(client, headers, leftover, content_length, filepath):
+    """Write a raw POST body straight to disk."""
+    try:
+        with open(filepath, "wb") as f:
+            # first write whatever was already read after the headers
+            written = 0
+            if leftover:
+                f.write(leftover)
+                written = len(leftover)
+
+            buf = bytearray(512)
+            while written < content_length:
+                try:
+                    n = client.recv_into(buf)
+                except OSError:
+                    break
+                if n <= 0:
+                    break
+                f.write(buf[:n])
+                written += n
+
+        return http_response(b"OK")
+    except Exception as e:
+        return http_response(str(e).encode(), status=b"500 Internal Server Error")
+
+
+def parse_multipart_boundary(headers: bytes):
+    for line in headers.split(b"\r\n"):
+        if b"Content-Type:" in line and b"multipart/form-data" in line:
+            parts = line.split(b"boundary=")
+            if len(parts) > 1:
+                return b"--" + parts[1].strip()
+    return None
+
+
+def upload_handler_stream(client, headers, leftover, content_length):
+    """
+    Extremely lightweight multipart parser that streams the file part
+    directly to disk.  Only looks for the two fields we care about:
+        name="path"
+        name="file"
+    """
+    boundary = parse_multipart_boundary(headers)
+    if not boundary:
+        return http_response(b"No boundary", status=b"400 Bad Request")
+
+    # We keep a small rolling buffer so we can detect the boundary
+    # without holding the whole body.
+    buf = leftover
+    path_value = None
+    file_opened = None
+    state = "looking"          # looking | in_headers | in_file | in_path
+    header_acc = b""
+
+    try:
+        remaining = content_length - len(leftover)
+        chunk = bytearray(512)
+
+        while True:
+            # ---- feed more data if needed ----
+            if len(buf) < 1024 and remaining > 0:
+                try:
+                    n = client.recv_into(chunk)
+                except OSError:
+                    n = 0
+                if n <= 0:
+                    break
+                buf += bytes(chunk[:n])
+                remaining -= n
+
+            if not buf:
+                break
+
+            if state == "looking":
+                idx = buf.find(boundary)
+                if idx == -1:
+                    # keep a little overlap so we never miss a boundary
+                    if len(buf) > len(boundary) + 4:
+                        buf = buf[-(len(boundary) + 4):]
+                    else:
+                        # need more data
+                        if remaining <= 0:
+                            break
+                        continue
+                else:
+                    # consume up to (and including) the boundary
+                    buf = buf[idx + len(boundary):]
+                    # skip the optional \r\n that follows the boundary
+                    if buf.startswith(b"\r\n"):
+                        buf = buf[2:]
+                    elif buf.startswith(b"--"):
+                        # final boundary
+                        break
+                    state = "in_headers"
+                    header_acc = b""
+                    continue
+
+            elif state == "in_headers":
+                # accumulate until blank line
+                end = buf.find(b"\r\n\r\n")
+                if end == -1:
+                    header_acc += buf
+                    buf = b""
+                    continue
+                header_acc += buf[:end]
+                buf = buf[end + 4:]
+
+                # decide what this part is
+                if b'name="path"' in header_acc:
+                    state = "in_path"
+                    path_value = b""
+                elif b'name="file"' in header_acc:
+                    # extract filename if present (optional)
+                    # open the target file now that we know the path
+                    if path_value is None:
+                        # path part must come first in the form
+                        return http_response(b"path must precede file", status=b"400 Bad Request")
+                    try:
+                        file_opened = open(path_value.decode(), "wb")
+                    except Exception as e:
+                        return http_response(str(e).encode(), status=b"500 Internal Server Error")
+                    state = "in_file"
+                else:
+                    # unknown part – just skip until next boundary
+                    state = "looking"
+                header_acc = b""
+                continue
+
+            elif state == "in_path":
+                # path is small – just collect until boundary
+                idx = buf.find(b"\r\n" + boundary)
+                if idx == -1:
+                    path_value += buf
+                    buf = b""
+                    continue
+                path_value += buf[:idx]
+                buf = buf[idx:]          # leave the \r\n+boundary for the next state
+                state = "looking"
+                continue
+
+            elif state == "in_file":
+                # stream until we see the boundary
+                idx = buf.find(b"\r\n" + boundary)
+                if idx == -1:
+                    # write everything except a possible partial boundary
+                    keep = len(boundary) + 4
+                    if len(buf) > keep:
+                        file_opened.write(buf[:-keep])
+                        buf = buf[-keep:]
+                    # else wait for more data
+                    if remaining <= 0 and len(buf) <= keep:
+                        # end of stream – write the rest
+                        file_opened.write(buf)
+                        buf = b""
+                        break
+                    continue
+                else:
+                    # write up to the boundary
+                    file_opened.write(buf[:idx])
+                    buf = buf[idx:]          # leave \r\n+boundary
+                    file_opened.close()
+                    file_opened = None
+                    state = "looking"
+                    continue
+
+        if file_opened:
+            file_opened.close()
+
+        if path_value is None:
+            return http_response(b"Missing path", status=b"400 Bad Request")
+
+        return http_response(b"Upload OK")
+
+    except Exception as e:
+        if file_opened:
+            try:
+                file_opened.close()
+            except:
+                pass
+        return http_response(str(e).encode(), status=b"500 Internal Server Error")
+
+
+# ------------------------------------------------------------------
+# UI handler (unchanged – still returns a big static string)
+# ------------------------------------------------------------------
 def ui_handler(request):
     html = b"""HTTP/1.1 200 OK\r
 Content-Type: text/html\r
