@@ -6,6 +6,7 @@ except ImportError:
 
 import os
 import time
+import storage
 
 from .utils import pad_line, get_key, open_settings
 from .utils_date_sync import wifi_get_and_print_datetime 
@@ -72,7 +73,7 @@ def mount_sd1(slot, mount_point):
         return
 
     try:
-        import storage
+        
         from pydos_hw import Pydos_hw
 
         # fallback like original PyDOS
@@ -113,7 +114,6 @@ def mount_sd(slot, mount_point):
         return
 
     try:
-        import storage
         import digitalio
         from pydos_hw import Pydos_hw
     except ImportError:
@@ -183,7 +183,6 @@ def unmount_sd(path):
         print("SD not available on this platform")
         return
     try:
-        import storage
         storage.umount(path)
         print("unmounted:", path)
     except Exception as e:

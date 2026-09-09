@@ -1,5 +1,4 @@
 from .__main__ import list_dir as fm
-# v3.30.04.27
 
 try:
     import board

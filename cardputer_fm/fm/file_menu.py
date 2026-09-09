@@ -159,3 +159,4 @@ def file_menu(path):
                     print("copied to:", target)
                 except Exception as e:
                     print("error:", e)
+                    input("Press any key")
