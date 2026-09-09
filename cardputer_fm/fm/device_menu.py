@@ -6,7 +6,6 @@ except ImportError:
 
 import os
 import time
-import storage
 
 from .utils import pad_line, get_key, open_settings
 from .utils_date_sync import wifi_get_and_print_datetime 
@@ -73,7 +72,7 @@ def mount_sd1(slot, mount_point):
         return
 
     try:
-        
+        import storage
         from pydos_hw import Pydos_hw
 
         # fallback like original PyDOS
@@ -114,6 +113,7 @@ def mount_sd(slot, mount_point):
         return
 
     try:
+        import storage
         import digitalio
         from pydos_hw import Pydos_hw
     except ImportError:
@@ -183,6 +183,7 @@ def unmount_sd(path):
         print("SD not available on this platform")
         return
     try:
+        import storage
         storage.umount(path)
         print("unmounted:", path)
     except Exception as e:
@@ -259,28 +260,48 @@ def device_menu():
                 mount_sd(slot, f"/sd/sd{slot}")
             else:
                 print("invalid slot")
+
         # ---------- UNMOUNT ----------
         elif key == '2':
+            try:
+                import storage
+            except ImportError:
+                print("SD not available: missing storage module")
+                continue
+
             print("Unmount:")
             print("0 -> ALL")
-            i = 0
-            for m in storage.getmounts():
-                print(i+1, ' -> ', m.mount_point)
 
+            mounts = list(storage.getmounts())
+
+            if not mounts:
+                print("No mounted filesystems")
+                continue
+
+            i = 0
+            for m in mounts:
+                print(i + 1, ' -> ', m.mount_point)
+
+            print("Select mount:")
             k = get_key()
+
             try:
                 slot = int(k)
             except:
                 print("invalid selection (enter a number)")
                 continue
 
-            if k == 0:
-                for m in storage.getmounts():
-                    storage.unmount(m.mount_point)
-            else :
-                mounts = storage.getmounts()
-                if k > -1 and k < len(mounts):
-                    storage.unmount(mounts[k].mount_point)
+            if slot == 0:
+                for m in mounts:
+                    try:
+                        storage.umount(m.mount_point)
+                        print("unmounted:", m.mount_point)
+                    except Exception as e:
+                        print("unmount error:", e)
+            elif slot > 0 and slot <= len(mounts):
+                unmount_sd(mounts[slot - 1].mount_point)
+            else:
+                print("invalid selection")
 
 
         # ---------- BRIGHTNESS ----------

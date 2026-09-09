@@ -13,18 +13,22 @@ def fill(text, max_width):
 
 view_box1 = (1,1,40,10)  # x,y,w,h (immutable!)
 
-# --- DOCUMENT MODEL ---
-doc_lines = [""]
-view_offset = 0
-file_path = None
+# --- DOCUMENT MODEL (state object to avoid global) ---
+class EditorState:
+    def __init__(self):
+        self.doc_lines = [""]
+        self.view_offset = 0
+        self.file_path = None
+        self.clipboard = ""
+        self.selection_active = False
+        self.selection_anchor = None
+        self.selection_end = None
+        self.selection_in_progress = False
+
+state = EditorState()
 
 # --- SELECTION / CLIPBOARD ---
-clipboard = ""
-
-selection_active = False
-selection_anchor = None
-selection_end = None
-selection_in_progress = False
+# (state holds clipboard and selection fields)
 
 # =========================================================
 # CLIPBOARD CONFIG
@@ -33,10 +37,8 @@ selection_in_progress = False
 USE_OS_CLIPBOARD = True
 
 def copy_to_clipboard(text):
-    global clipboard
-
     if not USE_OS_CLIPBOARD:
-        clipboard = text
+        state.clipboard = text
         return
 
     system = platform.system()
@@ -52,17 +54,14 @@ def copy_to_clipboard(text):
             p = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
             p.communicate(text.encode("utf-8"))
         else:
-            clipboard = text
-
+            state.clipboard = text
     except Exception:
-        clipboard = text
+        state.clipboard = text
 
 
 def paste_from_clipboard():
-    global clipboard
-
     if not USE_OS_CLIPBOARD:
-        return clipboard
+        return state.clipboard
 
     system = platform.system()
 
@@ -77,36 +76,34 @@ def paste_from_clipboard():
     except Exception:
         pass
 
-    return clipboard
+    return state.clipboard
 
 
 # --- FILE IO ---
 def load_file(path):
-    global doc_lines
-
     if os.path.exists(path):
         with open(path, 'r', encoding='utf-8') as f:
-            doc_lines = f.read().splitlines()
+            state.doc_lines = f.read().splitlines()
 
-        if not doc_lines:
-            doc_lines = [""]
+        if not state.doc_lines:
+            state.doc_lines = [""]
     else:
-        doc_lines = [""]
+        state.doc_lines = [""]
 
 
 def save_file(path):
     with open(path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(doc_lines))
+        f.write("\n".join(state.doc_lines))
 
 
 # --- SELECTION HELPERS ---
 
 def normalize_selection():
-    if not selection_anchor or not selection_end:
+    if not state.selection_anchor or not state.selection_end:
         return None
 
-    a = selection_anchor
-    b = selection_end
+    a = state.selection_anchor
+    b = state.selection_end
 
     if a <= b:
         return a,b
@@ -124,39 +121,27 @@ def has_selection():
 
 
 def clear_selection():
-    global selection_active
-    global selection_anchor
-    global selection_end
-    global selection_in_progress
-
-    selection_active=False
-    selection_anchor=None
-    selection_end=None
-    selection_in_progress=False
+    state.selection_active=False
+    state.selection_anchor=None
+    state.selection_end=None
+    state.selection_in_progress=False
 
 
 def begin_selection(row,col):
-    global selection_active
-    global selection_anchor
-    global selection_end
-    global selection_in_progress
+    if not state.selection_active:
+        state.selection_active=True
+        state.selection_anchor=(row,col)
 
-    if not selection_active:
-        selection_active=True
-        selection_anchor=(row,col)
-
-    selection_end=(row,col)
-    selection_in_progress=True
+    state.selection_end=(row,col)
+    state.selection_in_progress=True
 
 
 def update_selection(row,col):
-    global selection_end
-    selection_end=(row,col)
+    state.selection_end=(row,col)
 
 
 def finalize_selection():
-    global selection_in_progress
-    selection_in_progress=False
+    state.selection_in_progress=False
 
 
 def get_selected_text():
@@ -168,15 +153,15 @@ def get_selected_text():
     (r1,c1),(r2,c2)=r
 
     if r1==r2:
-        return doc_lines[r1][c1:c2]
+        return state.doc_lines[r1][c1:c2]
 
     out=[]
-    out.append(doc_lines[r1][c1:])
+    out.append(state.doc_lines[r1][c1:])
 
     for y in range(r1+1,r2):
-        out.append(doc_lines[y])
+        out.append(state.doc_lines[y])
 
-    out.append(doc_lines[r2][:c2])
+    out.append(state.doc_lines[r2][:c2])
 
     return "\n".join(out)
 
@@ -189,34 +174,34 @@ def delete_selection():
     (r1,c1),(r2,c2)=r
 
     if r1==r2:
-        line=doc_lines[r1]
-        doc_lines[r1]=(line[:c1]+line[c2:])
+        line=state.doc_lines[r1]
+        state.doc_lines[r1]=(line[:c1]+line[c2:])
     else:
-        first=doc_lines[r1][:c1]
-        last=doc_lines[r2][c2:]
-        doc_lines[r1]=first+last
-        del doc_lines[r1+1:r2+1]
+        first=state.doc_lines[r1][:c1]
+        last=state.doc_lines[r2][c2:]
+        state.doc_lines[r1]=first+last
+        del state.doc_lines[r1+1:r2+1]
     clear_selection()
     return r1,c1
 
 
 def insert_text(row,col,text):
     parts=text.split("\n")
-    line=doc_lines[row]
+    line=state.doc_lines[row]
     before=line[:col]
     after=line[col:]
     if len(parts)==1:
-        doc_lines[row]=(before+text+after)
+        state.doc_lines[row]=(before+text+after)
 
         return row,col+len(text)
 
-    doc_lines[row]=before+parts[0]
+    state.doc_lines[row]=before+parts[0]
     insert_pos=row+1
     for p in parts[1:-1]:
-        doc_lines.insert(insert_pos, p)
+        state.doc_lines.insert(insert_pos, p)
         insert_pos+=1
 
-    doc_lines.insert(insert_pos, parts[-1]+after)
+    state.doc_lines.insert(insert_pos, parts[-1]+after)
 
     return insert_pos,len(parts[-1])
 
@@ -237,7 +222,7 @@ def build_visual_lines():
     visual=[]
     width=view_box1[2]
 
-    for doc_y,line in enumerate(doc_lines):
+    for doc_y,line in enumerate(state.doc_lines):
         if line=="":
             visual.append((doc_y,0,""))
 
@@ -258,7 +243,7 @@ def build_visual_lines():
 def fill_view_box(view_box, visual_lines, cursor=None):
     for i in range(view_box[3]):
         move_cursor(view_box[0], view_box[1]+i)
-        idx=view_offset+i
+        idx=state.view_offset+i
         if idx<len(visual_lines):
             _,_,text=(visual_lines[idx])
         else:
@@ -302,17 +287,14 @@ def draw_status(doc_y,real_x,ch,path):
 # --- MAIN ---
 def main():
 
-    global view_offset
-    global file_path
-
     clear()
 
     # --- CLI ARG ---
     if len(sys.argv)>1:
-        file_path=sys.argv[1]
-        load_file(file_path)
+        state.file_path=sys.argv[1]
+        load_file(state.file_path)
     else:
-        file_path=("untitled.txt")
+        state.file_path=("untitled.txt")
     prev=None
     EDIT_MODE=False
     cursor_offset=[0,0]
@@ -322,7 +304,7 @@ def main():
             print(f"{key=}")
 
         # --- EXIT ---
-        if (key=="CTRL_C" and prev=="CTRL_C"):
+        if (key=="CTRL_Q" and prev=="CTRL_Q"):
             clear()
             break
 
@@ -332,7 +314,7 @@ def main():
 
         # --- SAVE ---
         if key=="CTRL_S":
-            save_file(file_path)
+            save_file(state.file_path)
 
         # --- ENTER EDIT MODE ---
         if key=="CTRL_P":
@@ -343,27 +325,28 @@ def main():
         if EDIT_MODE:
             visual=build_visual_lines()
             cx,cy=cursor_offset
-            vis_idx=(view_offset+cy)
+            vis_idx=(state.view_offset+cy)
 
             if vis_idx>=len(visual):
                 vis_idx=(len(visual)-1)
 
             doc_y,start_idx,segment=(visual[vis_idx])
-            line=doc_lines[doc_y]
+            line=state.doc_lines[doc_y]
             real_x=start_idx+cx
 
             shift_move=key in ('SHIFT+LEFT','SHIFT+RIGHT','SHIFT+UP','SHIFT+DOWN')
 
             if shift_move:
-                if not selection_in_progress:
+                if not state.selection_in_progress:
                     begin_selection(doc_y,real_x)
             else:
-                if selection_in_progress:
+                if state.selection_in_progress:
                     finalize_selection()
 
             # ==================================================
             # SELECTION OPERATIONS
             # ==================================================
+            handled = False
             if has_selection():
                 if key=="CTRL_C":
                     copy_to_clipboard(get_selected_text())
@@ -374,15 +357,49 @@ def main():
                     pos=delete_selection()
                     if pos:
                         doc_y,real_x=pos
+                    handled = True
                 elif key in ("DELETE","BACKSPACE"):
                     pos=delete_selection()
                     if pos:
                         doc_y,real_x=pos
-                elif len(key)==1:
-                    pos=replace_selection(key)
-
+                    handled = True
+                elif key=="CTRL_V":
+                    text=(paste_from_clipboard())
+                    pos=replace_selection(text)
                     if pos:
                         doc_y,real_x=pos
+                    handled = True
+                elif key=="TAB":
+                    r=normalize_selection()
+                    if r:
+                        (r1,c1),(r2,c2)=r
+                        for y in range(r1, r2+1):
+                            state.doc_lines[y] = "  " + state.doc_lines[y]
+                        # adjust selection columns
+                        state.selection_anchor = (state.selection_anchor[0], state.selection_anchor[1] + 2)
+                        state.selection_end = (state.selection_end[0], state.selection_end[1] + 2)
+                        real_x += 2
+                    handled = True
+                elif key=="SHIFT+TAB":
+                    r=normalize_selection()
+                    if r:
+                        (r1,c1),(r2,c2)=r
+                        for y in range(r1, r2+1):
+                            line = state.doc_lines[y]
+                            if line.startswith("  "):
+                                state.doc_lines[y] = line[2:]
+                            elif line.startswith(" "):
+                                state.doc_lines[y] = line[1:]
+                        # adjust selection columns (approximate, clamp to 0)
+                        state.selection_anchor = (state.selection_anchor[0], max(0, state.selection_anchor[1] - 2))
+                        state.selection_end = (state.selection_end[0], max(0, state.selection_end[1] - 2))
+                        real_x = max(0, real_x - 2)
+                    handled = True
+                elif len(key)==1:
+                    pos=replace_selection(key)
+                    if pos:
+                        doc_y,real_x=pos
+                    handled = True
                 elif not shift_move:
                     clear_selection()
 
@@ -390,73 +407,85 @@ def main():
             # INPUT
             # ==================================================
 
-            if key=="CTRL_V":
-                text=(paste_from_clipboard())
-                if has_selection():
-                    pos=replace_selection(text)
-                    if pos:
-                        doc_y,real_x=pos
-                else:
-                    doc_y,real_x=(insert_text(doc_y,real_x,text))
-            elif len(key)==1:
-                line=doc_lines[doc_y]
-                line=(line[:real_x]+key+line[real_x:]                )
-                doc_lines[doc_y]=line
-                real_x+=1
-            elif key=="ENTER":
-                line=doc_lines[doc_y]
-                new_line=(line[real_x:])
-                doc_lines[doc_y]=(line[:real_x])
-                doc_lines.insert(doc_y+1,new_line)
-                doc_y+=1
-                real_x=0
-            elif key=="BACKSPACE":
-                line=doc_lines[doc_y]
-                if real_x>0:
-                    line=(line[:real_x-1]+line[real_x:])
-                    doc_lines[doc_y]=line
-                    real_x-=1
-                elif doc_y>0:
-                    prev_line=(doc_lines[doc_y-1])
-                    real_x=len(prev_line)
-                    doc_lines[doc_y-1]=(prev_line+line)
-                    doc_lines.pop(doc_y)
-                    doc_y-=1
-            elif key=="DELETE":
-                line=doc_lines[doc_y]
-                if real_x<len(line):
-                    line=(
-                        line[:real_x]
-                        +line[
-                            real_x+1:
+            if not handled:
+                if key=="CTRL_V":
+                    text=(paste_from_clipboard())
+                    if has_selection():
+                        pos=replace_selection(text)
+                        if pos:
+                            doc_y,real_x=pos
+                    else:
+                        doc_y,real_x=(insert_text(doc_y,real_x,text))
+                elif key=="CTRL_A":
+                    # select all text
+                    if state.doc_lines:
+                        state.selection_active = True
+                        state.selection_anchor = (0, 0)
+                        last_y = len(state.doc_lines) - 1
+                        state.selection_end = (last_y, len(state.doc_lines[last_y]))
+                        state.selection_in_progress = False
+                elif key=="TAB":
+                    # add two spaces
+                    doc_y, real_x = insert_text(doc_y, real_x, "  ")
+                elif len(key)==1:
+                    line=state.doc_lines[doc_y]
+                    line=(line[:real_x]+key+line[real_x:]                )
+                    state.doc_lines[doc_y]=line
+                    real_x+=1
+                elif key=="ENTER":
+                    line=state.doc_lines[doc_y]
+                    new_line=(line[real_x:])
+                    state.doc_lines[doc_y]=(line[:real_x])
+                    state.doc_lines.insert(doc_y+1,new_line)
+                    doc_y+=1
+                    real_x=0
+                elif key=="BACKSPACE":
+                    line=state.doc_lines[doc_y]
+                    if real_x>0:
+                        line=(line[:real_x-1]+line[real_x:])
+                        state.doc_lines[doc_y]=line
+                        real_x-=1
+                    elif doc_y>0:
+                        prev_line=(state.doc_lines[doc_y-1])
+                        real_x=len(prev_line)
+                        state.doc_lines[doc_y-1]=(prev_line+line)
+                        state.doc_lines.pop(doc_y)
+                        doc_y-=1
+                elif key=="DELETE":
+                    line=state.doc_lines[doc_y]
+                    if real_x<len(line):
+                        line=(
+                            line[:real_x]
+                            +line[
+                                real_x+1:
+                            ]
+                        )
+
+                        state.doc_lines[
+                            doc_y
+                        ]=line
+
+                    elif (
+                        doc_y
+                        <
+                        len(state.doc_lines)-1
+                    ):
+
+                        state.doc_lines[
+                            doc_y
+                        ]+=state.doc_lines[
+                            doc_y+1
                         ]
-                    )
 
-                    doc_lines[
-                        doc_y
-                    ]=line
-
-                elif (
-                    doc_y
-                    <
-                    len(doc_lines)-1
-                ):
-
-                    doc_lines[
-                        doc_y
-                    ]+=doc_lines[
-                        doc_y+1
-                    ]
-
-                    doc_lines.pop(
-                        doc_y+1
-                    )
+                        state.doc_lines.pop(
+                            doc_y+1
+                        )
 
             # ==================================================
             # NAVIGATION
             # ==================================================
 
-            elif key in (
+            if key in (
                 "LEFT",
                 "SHIFT+LEFT"
             ):
@@ -470,7 +499,7 @@ def main():
                     doc_y-=1
 
                     real_x=len(
-                        doc_lines[
+                        state.doc_lines[
                             doc_y
                         ]
                     )
@@ -487,7 +516,7 @@ def main():
                 elif (
                     doc_y
                     <
-                    len(doc_lines)-1
+                    len(state.doc_lines)-1
                 ):
 
                     doc_y+=1
@@ -505,7 +534,7 @@ def main():
                     real_x=min(
                         real_x,
                         len(
-                            doc_lines[
+                            state.doc_lines[
                                 doc_y
                             ]
                         )
@@ -519,7 +548,7 @@ def main():
                 if (
                     doc_y
                     <
-                    len(doc_lines)-1
+                    len(state.doc_lines)-1
                 ):
 
                     doc_y+=1
@@ -527,7 +556,7 @@ def main():
                     real_x=min(
                         real_x,
                         len(
-                            doc_lines[
+                            state.doc_lines[
                                 doc_y
                             ]
                         )
@@ -573,7 +602,7 @@ def main():
 
             cy=(
                 new_vis_idx
-                -view_offset
+                -state.view_offset
             )
 
             # ==================================================
@@ -582,7 +611,7 @@ def main():
 
             if cy<0:
 
-                view_offset=(
+                state.view_offset=(
                     new_vis_idx
                 )
 
@@ -590,7 +619,7 @@ def main():
 
             elif cy>=view_box1[3]:
 
-                view_offset=(
+                state.view_offset=(
                     new_vis_idx
                     -view_box1[3]
                     +1
@@ -617,20 +646,20 @@ def main():
             if (
                 doc_y
                 <
-                len(doc_lines)
+                len(state.doc_lines)
             ):
 
                 if (
                     real_x
                     <
                     len(
-                        doc_lines[
+                        state.doc_lines[
                             doc_y
                         ]
                     )
                 ):
 
-                    ch=doc_lines[
+                    ch=state.doc_lines[
                         doc_y
                     ][real_x]
 
@@ -638,7 +667,7 @@ def main():
                 doc_y,
                 real_x,
                 ch,
-                file_path
+                state.file_path
             )
 
         prev=key

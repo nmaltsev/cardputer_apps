@@ -90,6 +90,10 @@ def _decode_escape_sequence(seq):
 
     body = seq[1:]
 
+    # Shift-Tab is normally ESC [ Z.
+    if body == "Z":
+        return "SHIFT+TAB"
+
     # Simple arrows: [A
     if body in ANSI_KEYS:
         return ANSI_KEYS[body]
@@ -152,11 +156,12 @@ def get_key():
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
-            
+
 # ---------- TERMINAL ----------
 def clear():
     sys.stdout.write("\x1b[2J\x1b[H")
     sys.stdout.flush()
+
 
 def move_cursor(x, y):
     sys.stdout.write(f"\x1b[{y+1};{x+1}H")
