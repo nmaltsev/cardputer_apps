@@ -269,6 +269,14 @@ def device_menu():
                 print("SD not available: missing storage module")
                 continue
 
+            try:
+                storage.umount('/sd/sd1')
+                print("unmounted:", '/sd/sd1')
+            except Exception as e:
+                print("unmount error:", e)
+
+            continue
+            # TODO investigate how to get the mounts
             print("Unmount:")
             print("0 -> ALL")
 

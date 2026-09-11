@@ -84,6 +84,9 @@ def get_key():
 
 
 def get_key2():
+    # Alt + q = \x1,bq
+    # Alt + 3 = \x1,b3
+    # Opt + q = \x1,0q
     try:
         ch = sys.stdin.read(6)
 
@@ -92,7 +95,8 @@ def get_key2():
         print("get_key error: ", exc)
 
 
-def main():
+# WORKS
+def main1():
     prev = None
     try:
         while True:
@@ -137,7 +141,8 @@ def main3():
         prev = None
         while True:
             seq = get_key2()
-            print(f"{seq=}")
+            arr = [ord(ch) for ch in seq]
+            print(f"{seq=} {arr=}")
 
             prev = seq
     except KeyboardInterrupt:

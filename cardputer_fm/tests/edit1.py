@@ -1,8 +1,40 @@
-from edit_utils import get_key, clear, move_cursor
 import sys
 import os
-import subprocess
-import platform
+
+def clear():
+    sys.stdout.write("\x1b[2J\x1b[H")
+    # print("\x1b[2J\x1b[H", end='')
+
+def move_cursor(x, y):
+    sys.stdout.write(f"\x1b[{y+1};{x+1}H")
+
+CTRL_KEYS = {
+    "\x03": "CTRL_C",
+    "\x04": "CTRL_D",
+    "\x08": "BACKSPACE",
+    "\x7f": "BACKSPACE",
+    "\r": "ENTER",
+    "\n": "ENTER",
+    "\t": "TAB",
+    "\x1b": "ESC",
+}
+
+def get_key():
+    try:
+        ch = sys.stdin.read(1)
+
+        # Named control keys
+        if ch in CTRL_KEYS:
+            return CTRL_KEYS[ch]
+
+        # CTRL+A ... CTRL+Z
+        code = ord(ch)
+        if 1 <= code <= 26:
+            return f"CTRL_{chr(code + 64)}"
+
+        return ch
+    except Exception as exc:
+        print("get_key error: ", exc)    
 
 # --- ORIGINAL FUNCTIONS (preserved) ---
 def fill(text, max_width):
@@ -11,7 +43,7 @@ def fill(text, max_width):
     else:
         return text + '-' * (max_width - len(text))
 
-view_box1 = (1,1,40,10)  # x,y,w,h (immutable!)
+view_box1 = (0,0,40,8)  # x,y,w,h (immutable!)
 
 # --- DOCUMENT MODEL (state object to avoid global) ---
 class EditorState:
@@ -34,56 +66,19 @@ state = EditorState()
 # CLIPBOARD CONFIG
 # =========================================================
 
-USE_OS_CLIPBOARD = True
 
 def copy_to_clipboard(text):
-    if not USE_OS_CLIPBOARD:
-        state.clipboard = text
-        return
-
-    system = platform.system()
-
-    try:
-        # macOS 10.12–10.15
-        if system == "Darwin":
-            p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-            p.communicate(text.encode("utf-8"))
-
-        # Ubuntu/Linux
-        elif system == "Linux":
-            p = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE)
-            p.communicate(text.encode("utf-8"))
-        else:
-            state.clipboard = text
-    except Exception:
-        state.clipboard = text
-
+    state.clipboard = text
 
 def paste_from_clipboard():
-    if not USE_OS_CLIPBOARD:
-        return state.clipboard
-
-    system = platform.system()
-
-    try:
-        # macOS
-        if system == "Darwin":
-            return subprocess.check_output(["pbpaste"]).decode("utf-8")
-
-        # Ubuntu/Linux
-        elif system == "Linux":
-            return subprocess.check_output(["xclip", "-selection", "clipboard", "-o"]).decode("utf-8")
-    except Exception:
-        pass
-
     return state.clipboard
 
 
 # --- FILE IO ---
 def load_file(path):
     if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8') as f:
-            state.doc_lines = f.read().splitlines()
+        with open(path, 'r') as f:
+            state.doc_lines = f.read().split("\n")
 
         if not state.doc_lines:
             state.doc_lines = [""]
@@ -92,14 +87,14 @@ def load_file(path):
 
 
 def save_file(path):
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, 'w') as f:
         f.write("\n".join(state.doc_lines))
 
 
 # --- SELECTION HELPERS ---
 
 def normalize_selection():
-    if not state.selection_anchor or not state.selection_end:
+    if state.selection_anchor is None or state.selection_end is None:
         return None
 
     a = state.selection_anchor
@@ -285,16 +280,15 @@ def draw_status(doc_y,real_x,ch,path):
 
 
 # --- MAIN ---
-def main():
-
+def main(path):
     clear()
 
     # --- CLI ARG ---
-    if len(sys.argv)>1:
-        state.file_path=sys.argv[1]
+    if path is not None:
+        state.file_path=path
         load_file(state.file_path)
     else:
-        state.file_path=("untitled.txt")
+        state.file_path="untitled.txt"
     prev=None
     EDIT_MODE=False
     cursor_offset=[0,0]
@@ -472,7 +466,7 @@ def main():
                     real_x=len(state.doc_lines[doc_y])
 
             elif key in ("RIGHT", "SHIFT+RIGHT"):
-                if real_x<len(line):
+                if real_x < len(state.doc_lines[doc_y]):
                     real_x+=1
                 elif (doc_y < len(state.doc_lines)-1):
                     doc_y+=1
@@ -538,4 +532,8 @@ def main():
 
 
 if __name__=="__main__":
-    main()
+    if len(sys.argv)>1:
+        path = sys.argv[1]
+    else:
+        path = None
+    main(path)
