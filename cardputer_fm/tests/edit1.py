@@ -250,9 +250,8 @@ def fill_view_box(view_box, visual_lines, cursor=None):
             if cx>=len(text):
                 text=text+"_"
             else:
-                text=(text[:cx] + "_" + text[cx:])
+                text=text[:cx] + "_" + text[cx:]
         print(fill(text, view_box[2]), end='')
-    sys.stdout.flush()
 
 
 # --- STATUS BAR ---
@@ -261,22 +260,12 @@ def draw_status(doc_y,real_x,ch,path):
     move_cursor(view_box1[0],y)
 
     if has_selection():
-        (r1,c1),(r2,c2)=(normalize_selection())
+        (r1,c1),(r2,c2)=normalize_selection()
 
-        status=(
-            f"({r1+1},{c1+1},"
-            f"{r2+1},{c2+1}) "
-            f"{path}"
-        )
+        status=f"({r1+1},{c1+1},{r2+1},{c2+1}) {path}"
     else:
-        status=(
-            f"({doc_y+1}:{real_x+1}) "
-            f"{repr(ch)} "
-            f"{path}"
-        )
+        status=f"({doc_y+1}:{real_x+1}) {repr(ch)} {path}"
     print(fill(status,view_box1[2]),end='')
-
-    sys.stdout.flush()
 
 
 # --- MAIN ---
@@ -298,7 +287,7 @@ def main(path):
             print(f"{key=}")
 
         # --- EXIT ---
-        if (key=="CTRL_Q" and prev=="CTRL_Q"):
+        if key=="CTRL_Q" and prev=="CTRL_Q":
             clear()
             break
 
@@ -319,12 +308,12 @@ def main(path):
         if EDIT_MODE:
             visual=build_visual_lines()
             cx,cy=cursor_offset
-            vis_idx=(state.view_offset+cy)
+            vis_idx=state.view_offset+cy
 
             if vis_idx>=len(visual):
-                vis_idx=(len(visual)-1)
+                vis_idx=len(visual)-1
 
-            doc_y,start_idx,segment=(visual[vis_idx])
+            doc_y,start_idx,segment=visual[vis_idx]
             line=state.doc_lines[doc_y]
             real_x=start_idx+cx
 
@@ -498,13 +487,11 @@ def main(path):
 
             dy,start,seg=(visual[new_vis_idx])
             cx=real_x-start
-
             cy=new_vis_idx-state.view_offset
 
             # ==================================================
             # SCROLLING
             # ==================================================
-
             if cy<0:
                 state.view_offset=new_vis_idx
                 cy=0

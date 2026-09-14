@@ -73,7 +73,6 @@ ESCAPE_SEQUENCES = {
 
 def clear():
     sys.stdout.write("\x1b[2J\x1b[H")
-    sys.stdout.flush()
 
 
 def move_cursor(x, y):
@@ -391,7 +390,6 @@ def fill_view_box(view_box, visual_lines, cursor=None):
 
         print(fill(text, view_box[2]), end="")
 
-    sys.stdout.flush()
 
 
 # ---------------------------------------------------------
@@ -416,7 +414,6 @@ def draw_status(doc_y, real_x, ch, path):
         )
 
     print(fill(status, VIEW_BOX[2]), end="")
-    sys.stdout.flush()
 
 
 # ---------------------------------------------------------
