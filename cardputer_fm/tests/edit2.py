@@ -178,16 +178,13 @@ def paste_from_clipboard():
 # ---------------------------------------------------------
 
 def load_file(path):
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            data = f.read()
-
-        # Keep a final empty line if the file ends with '\n'.
-        state.doc_lines = data.split("\n")
+    try:
+        with open(path, 'r') as f:
+            state.doc_lines = f.read().split("\n")
 
         if not state.doc_lines:
             state.doc_lines = [""]
-    else:
+    except OSError:
         state.doc_lines = [""]
 
 

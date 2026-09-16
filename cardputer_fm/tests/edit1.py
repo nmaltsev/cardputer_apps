@@ -76,13 +76,13 @@ def paste_from_clipboard():
 
 # --- FILE IO ---
 def load_file(path):
-    if os.path.exists(path):
+    try:
         with open(path, 'r') as f:
             state.doc_lines = f.read().split("\n")
 
         if not state.doc_lines:
             state.doc_lines = [""]
-    else:
+    except OSError:
         state.doc_lines = [""]
 
 
