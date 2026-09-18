@@ -450,14 +450,14 @@ def main(path):
             # ==================================================
             # NAVIGATION
             # ==================================================
-            if key in ("LEFT", "SHIFT+LEFT", "CTRL_H", "CTRL_O"):
+            if key in ("LEFT", "SHIFT+LEFT", "CTRL_T", "CTRL_O"):
                 if real_x>0:
                     real_x-=1
                 elif doc_y>0:
                     doc_y-=1
                     real_x=len(state.doc_lines[doc_y])
 
-            elif key in ("RIGHT", "SHIFT+RIGHT", "CTRL_J", "CTRL_E"):
+            elif key in ("RIGHT", "SHIFT+RIGHT", "CTRL_Y", "CTRL_E"):
                 if real_x < len(state.doc_lines[doc_y]):
                     real_x+=1
                 elif (doc_y < len(state.doc_lines)-1):
