@@ -263,6 +263,7 @@ def device_menu():
 
         # ---------- UNMOUNT ----------
         elif key == '2':
+            # TODO move into the directory menu
             try:
                 import storage
             except ImportError:
@@ -275,41 +276,41 @@ def device_menu():
             except Exception as e:
                 print("unmount error:", e)
 
-            continue
-            # TODO investigate how to get the mounts
-            print("Unmount:")
-            print("0 -> ALL")
+            # continue
+            # # TODO investigate how to get the mounts
+            # print("Unmount:")
+            # print("0 -> ALL")
 
-            mounts = list(storage.getmounts())
+            # mounts = list(storage.getmounts())
 
-            if not mounts:
-                print("No mounted filesystems")
-                continue
+            # if not mounts:
+            #     print("No mounted filesystems")
+            #     continue
 
-            i = 0
-            for m in mounts:
-                print(i + 1, ' -> ', m.mount_point)
+            # i = 0
+            # for m in mounts:
+            #     print(i + 1, ' -> ', m.mount_point)
 
-            print("Select mount:")
-            k = get_key()
+            # print("Select mount:")
+            # k = get_key()
 
-            try:
-                slot = int(k)
-            except:
-                print("invalid selection (enter a number)")
-                continue
+            # try:
+            #     slot = int(k)
+            # except:
+            #     print("invalid selection (enter a number)")
+            #     continue
 
-            if slot == 0:
-                for m in mounts:
-                    try:
-                        storage.umount(m.mount_point)
-                        print("unmounted:", m.mount_point)
-                    except Exception as e:
-                        print("unmount error:", e)
-            elif slot > 0 and slot <= len(mounts):
-                unmount_sd(mounts[slot - 1].mount_point)
-            else:
-                print("invalid selection")
+            # if slot == 0:
+            #     for m in mounts:
+            #         try:
+            #             storage.umount(m.mount_point)
+            #             print("unmounted:", m.mount_point)
+            #         except Exception as e:
+            #             print("unmount error:", e)
+            # elif slot > 0 and slot <= len(mounts):
+            #     unmount_sd(mounts[slot - 1].mount_point)
+            # else:
+            #     print("invalid selection")
 
 
         # ---------- BRIGHTNESS ----------

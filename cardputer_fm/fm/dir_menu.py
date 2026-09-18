@@ -100,9 +100,9 @@ def dir_menu(path):
         print("1 create file")
         print("2 create dir")
         print("3 copy to | 4 move to")
-        print("5 rename")
+        print("5 rename | 7 umount")
         print("6 remove")
-        print(pad_line("> 1-6 q"))
+        print(pad_line("> 1-7 q"))
 
         key = get_key()
 
@@ -186,3 +186,16 @@ def dir_menu(path):
                     break
                 except Exception as e:
                     print("error:", e)
+
+        elif key == '7':
+            try:
+                import storage
+            except ImportError:
+                print("SD not available: missing storage module")
+                continue
+
+            try:
+                storage.umount(path)
+                print("unmounted:", path)
+            except Exception as e:
+                print("unmount error:", e)

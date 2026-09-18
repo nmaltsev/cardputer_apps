@@ -95,6 +95,55 @@ def get_key2():
         print("get_key error: ", exc)
 
 
+ESCAPE_SEQUENCES = {
+    "\x1b[A": "UP",
+    "\x1b[B": "DOWN",
+    "\x1b[C": "RIGHT",
+    "\x1b[D": "LEFT",
+    "\x1b[3~": "DELETE",
+    "\x1b[1;2A": "SHIFT+UP",
+    "\x1b[1;2B": "SHIFT+DOWN",
+    "\x1b[1;2C": "SHIFT+RIGHT",
+    "\x1b[1;2D": "SHIFT+LEFT",
+}
+
+def get_key3():
+    try:
+        ch = sys.stdin.read(1)
+
+        if ch == "\x1b":
+            seq = ch
+
+            # ANSI sequences used here are short. Read characters until a final byte is encountered.
+            for _ in range(7):
+                nxt = read_one()
+                if not nxt:
+                    break
+                seq += nxt
+                if seq in ESCAPE_SEQUENCES:
+                    break
+
+            if seq in ESCAPE_SEQUENCES:
+                return ESCAPE_SEQUENCES[seq]
+
+            return "ESC"
+
+
+        # Named control keys
+        if ch in CTRL_KEYS:
+            return CTRL_KEYS[ch]
+
+        # CTRL+A ... CTRL+Z
+        code = ord(ch)
+        if 1 <= code <= 26:
+            return f"CTRL_{chr(code + 64)}"
+
+        return ch
+    except Exception as exc:
+        print("get_key error: ", exc)
+    
+
+
 # WORKS
 def main1():
     prev = None
@@ -127,7 +176,8 @@ def main2():
         prev = None
         while True:
             seq = read_escape_sequence()
-            print(f"{seq=}")
+            arr = [ord(ch) for ch in seq]
+            print(f"{arr=}")
 
             prev = seq
     except KeyboardInterrupt:
@@ -151,6 +201,20 @@ def main3():
         print('Exception ', exc)
         raise exc
 
+def main4():
+    try:
+        prev = None
+        while True:
+            seq = get_key3()
+            arr = [ord(ch) for ch in seq]
+            print(f"{seq=} {arr=}")
+
+            prev = seq
+    except KeyboardInterrupt:
+        pass
+    except Exception as exc:
+        print('Exception ', exc)
+        raise exc
 
 if __name__ == '__main__':
     main()

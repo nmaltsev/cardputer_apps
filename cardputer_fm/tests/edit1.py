@@ -1,6 +1,9 @@
 import sys
 import os
 
+# TODO Show the file change status
+# TODO show the intro help message
+
 def clear():
     sys.stdout.write("\x1b[2J\x1b[H")
     # print("\x1b[2J\x1b[H", end='')
@@ -9,8 +12,8 @@ def move_cursor(x, y):
     sys.stdout.write(f"\x1b[{y+1};{x+1}H")
 
 CTRL_KEYS = {
-    "\x03": "CTRL_C",
-    "\x04": "CTRL_D",
+    # "\x03": "CTRL_C",
+    # "\x04": "CTRL_D",
     "\x08": "BACKSPACE",
     "\x7f": "BACKSPACE",
     "\r": "ENTER",
@@ -447,25 +450,25 @@ def main(path):
             # ==================================================
             # NAVIGATION
             # ==================================================
-            if key in ("LEFT", "SHIFT+LEFT"):
+            if key in ("LEFT", "SHIFT+LEFT", "CTRL_H", "CTRL_O"):
                 if real_x>0:
                     real_x-=1
                 elif doc_y>0:
                     doc_y-=1
                     real_x=len(state.doc_lines[doc_y])
 
-            elif key in ("RIGHT", "SHIFT+RIGHT"):
+            elif key in ("RIGHT", "SHIFT+RIGHT", "CTRL_J", "CTRL_E"):
                 if real_x < len(state.doc_lines[doc_y]):
                     real_x+=1
                 elif (doc_y < len(state.doc_lines)-1):
                     doc_y+=1
                     real_x=0
-            elif key in ("UP","SHIFT+UP"):
+            elif key in ("UP","SHIFT+UP", "CTRL_K", "CTRL_N"):
                 if doc_y>0:
                     doc_y-=1
                     real_x=min(real_x, len(state.doc_lines[doc_y]))
 
-            elif key in ("DOWN", "SHIFT+DOWN"):
+            elif key in ("DOWN", "SHIFT+DOWN", "CTRL_L", "CTRL_M"):
                 if (doc_y < len(state.doc_lines)-1):
                     doc_y+=1
                     real_x=min(real_x, len(state.doc_lines[doc_y]))
