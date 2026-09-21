@@ -1,20 +1,20 @@
 import sys
 import os
-
+__version__ = '2.2026.09.21'
 # ============================================================
 # Configuration
 # ============================================================
-SCREEN_WIDTH = 40
-SCREEN_HEIGHT = 8
-CHUNK_SIZE = 40 * 8
+view_box1 = (0, 0, 40, 8)  # x,y,w,h (immutable!)
+SCREEN_WIDTH = view_box1[2]
+SCREEN_HEIGHT = view_box1[3]
 HEADER_Y = 0
 CONTENT_Y = 1
-CONTENT_HEIGHT = 6
-FOOTER_Y = 7
-view_box1 = (0, 0, 40, 8)  # x,y,w,h (immutable!)
+CONTENT_HEIGHT = SCREEN_HEIGHT - 2
+FOOTER_Y = SCREEN_HEIGHT - 1
+CHUNK_SIZE = 40 * 8
 
 # ============================================================
-# Terminal control
+# Terminal
 # ============================================================
 def clear():
     sys.stdout.write("\x1b[2J\x1b[H")
@@ -34,12 +34,13 @@ CTRL_KEYS = {
     "\r": "ENTER",
     "\n": "ENTER",
     "\t": "TAB",
-    "\x1b": "ESC",
 }
 
 def get_key():
     try:
         ch = sys.stdin.read(1)
+        if ch == "\x1b":
+            return read_escape_sequence()
         if ch in CTRL_KEYS:
             return CTRL_KEYS[ch]
         code = ord(ch)
@@ -47,8 +48,34 @@ def get_key():
             return f"CTRL_{chr(code + 64)}"
         return ch
     except Exception as exc:
-        print("get_key error: ", exc)
         return None
+
+def read_escape_sequence():
+    """
+    Parse ANSI escape sequences.
+    UP       ESC [ A
+    DOWN     ESC [ B
+    RIGHT    ESC [ C
+    LEFT     ESC [ D
+    DELETE   ESC [ 3 ~
+    """
+    ch = sys.stdin.read(1)
+    if ch != "[":
+        return "ESC"
+    ch = sys.stdin.read(1)
+    if ch == "A":
+        return "UP"
+    if ch == "B":
+        return "DOWN"
+    if ch == "C":
+        return "RIGHT"
+    if ch == "D":
+        return "LEFT"
+    if ch == "3":
+        ch = sys.stdin.read(1)
+        if ch == "~":
+            return "DELETE"
+    return "ESC"
 
 # ============================================================
 # File operations
@@ -62,7 +89,6 @@ def load_file(path, offset, length):
     except OSError:
         return None
     except UnicodeDecodeError:
-        # Decode incomplete or invalid UTF-8 safely.
         try:
             return data.decode("utf-8", "replace")
         except Exception:
@@ -98,75 +124,43 @@ def get_file_size(path):
         return 0
 
 # ============================================================
-# String helpers
+# Helpers
 # ============================================================
 def pad_right(text, width):
-    """
-    Replacement for str.ljust().
-    """
     if len(text) >= width:
         return text[:width]
     return text + (" " * (width - len(text)))
 
 def safe_char(ch):
-    """
-    Ensure the character can be displayed in the terminal.
-    """
-    if ch == "\t":
-        return " "
-    if ch == "\r":
+    if ch in ("\t", "\r"):
         return " "
     if ord(ch) < 32:
         return " "
     return ch
 
-def split_lines(text):
-    """
-    Split text into logical lines.
-    Does not use str.splitlines() so that the behavior
-    remains predictable on CircuitPython.
-    """
-    lines = []
-    current = ""
-    for ch in text:
-        if ch == "\n":
-            lines.append(current)
-            current = ""
-        elif ch == "\r":
-            pass
-        else:
-            current += ch
-    lines.append(current)
-    return lines
-
 # ============================================================
-# Editor class
+# Text editor
 # ============================================================
 class TextEditor:
     def __init__(self, filename):
         self.filename = filename
-        # Internal file offset in bytes.
+        # File offset in bytes.
         self.offset = 0
         # Offset of the next chunk.
         self.next_offset = 0
-        # Original bytes loaded from disk.
+        # Original bytes.
         self.original_bytes = b""
-        # Current editable text.
+        # Editable text.
         self.text = ""
-        # Cursor position as character index.
+        # Cursor is a character index in self.text.
         self.cursor = 0
-        # Vertical and horizontal cursor position.
-        self.cursor_line = 0
-        self.cursor_col = 0
-        # Horizontal display scroll.
-        self.scroll_x = 0
-        # Chunk changed flag.
+        # Preferred column for vertical movement.
+        self.preferred_col = 0
+        # Changed flag.
         self.changed = False
-        # File exists flag.
-        self.file_exists = False
         # Status message.
         self.status = ""
-        # Load initial chunk.
+        # Load first chunk.
         self.load_chunk(0)
 
     # ========================================================
@@ -195,9 +189,9 @@ class TextEditor:
         self.offset = offset
         self.next_offset = offset + len(data)
         self.cursor = 0
+        self.preferred_col = 0
         self.changed = False
         self.status = ""
-        self.update_cursor_position()
         return True
 
     def reload_chunk(self):
@@ -225,7 +219,6 @@ class TextEditor:
         return self.load_chunk(self.offset)
 
     def next_chunk(self):
-        # Save changes before navigating.
         if self.changed:
             if not self.save_chunk():
                 return False
@@ -249,80 +242,165 @@ class TextEditor:
         return self.load_chunk(new_offset)
 
     # ========================================================
-    # Cursor management
+    # Visual line layout
     # ========================================================
-    def update_cursor_position(self):
-        before = self.text[:self.cursor]
-        lines = before.split("\n")
-        self.cursor_line = len(lines) - 1
-        self.cursor_col = len(lines[-1])
+    def build_visual_lines(self):
+        """
+        Build visual lines according to SCREEN_WIDTH.
+        Each visual line contains:
+            text   : display text
+            start  : starting character index
+            end    : ending character index
+        Cursor positions are mapped to these lines.
+        """
+        lines = []
+        start = 0
+        col = 0
+        i = 0
+        text_len = len(self.text)
+        while i < text_len:
+            ch = self.text[i]
+            # Explicit newline.
+            if ch == "\n":
+                lines.append({
+                    "text": self.text[start:i],
+                    "start": start,
+                    "end": i,
+                    "newline": True
+                })
+                i += 1
+                start = i
+                col = 0
+                continue
+            # Wrap at screen width.
+            if col >= SCREEN_WIDTH:
+                lines.append({
+                    "text": self.text[start:i],
+                    "start": start,
+                    "end": i,
+                    "newline": False
+                })
+                start = i
+                col = 0
+            col += 1
+            i += 1
+        # Add remaining text.
+        lines.append({
+            "text": self.text[start:text_len],
+            "start": start,
+            "end": text_len,
+            "newline": False
+        })
+        # Always keep at least one line.
+        if len(lines) == 0:
+            lines.append({
+                "text": "",
+                "start": 0,
+                "end": 0,
+                "newline": False
+            })
+        return lines
 
-    def set_cursor(self, position):
-        if position < 0:
-            position = 0
-        if position > len(self.text):
-            position = len(self.text)
-        self.cursor = position
-        self.update_cursor_position()
+    def get_cursor_visual_position(self):
+        """
+        Returns:
+            visual_line
+            visual_column
+        The cursor is positioned BEFORE the character
+        at self.cursor.
+        """
+        lines = self.build_visual_lines()
+        cursor = self.cursor
+        for line_no, line in enumerate(lines):
+            start = line["start"]
+            end = line["end"]
+            # Cursor is within this line.
+            if start <= cursor <= end:
+                col = cursor - start
+                # Cursor at the end of a full wrapped line:
+                # place it at the last column.
+                if col > SCREEN_WIDTH:
+                    col = SCREEN_WIDTH
+                return line_no, col
+        # Fallback to last line.
+        last = lines[-1]
+        return len(lines) - 1, self.cursor - last["start"]
 
+    def get_cursor_char(self):
+        """
+        Character under cursor.
+        If cursor is at the end of the text,
+        return a space.
+        """
+        if self.cursor >= len(self.text):
+            return " "
+        ch = self.text[self.cursor]
+        if ch in ("\n", "\r", "\t"):
+            return " "
+        return ch
+
+    # ========================================================
+    # Cursor movement
+    # ========================================================
     def move_left(self):
         if self.cursor > 0:
             self.cursor -= 1
-            self.update_cursor_position()
+            self.preferred_col = (
+                self.get_cursor_visual_position()[1]
+            )
 
     def move_right(self):
         if self.cursor < len(self.text):
             self.cursor += 1
-            self.update_cursor_position()
+            self.preferred_col = (
+                self.get_cursor_visual_position()[1]
+            )
 
     def move_up(self):
-        self.update_cursor_position()
-        current_line = self.cursor_line
-        current_col = self.cursor_col
+        lines = self.build_visual_lines()
+        current_line, current_col = (
+            self.get_cursor_visual_position()
+        )
         if current_line <= 0:
             return
-        lines = split_lines(self.text)
         target_line = current_line - 1
-        if target_line >= len(lines):
-            return
-        target_col = current_col
-        if target_col > len(lines[target_line]):
-            target_col = len(lines[target_line])
-        position = 0
-        for i in range(target_line):
-            position += len(lines[i]) + 1
-        position += target_col
-        self.set_cursor(position)
+        target = lines[target_line]
+        target_col = self.preferred_col
+        line_length = target["end"] - target["start"]
+        if target_col > line_length:
+            target_col = line_length
+        self.cursor = target["start"] + target_col
 
     def move_down(self):
-        self.update_cursor_position()
-        current_line = self.cursor_line
-        current_col = self.cursor_col
-        lines = split_lines(self.text)
-        target_line = current_line + 1
-        if target_line >= len(lines):
+        lines = self.build_visual_lines()
+        current_line, current_col = (
+            self.get_cursor_visual_position()
+        )
+        # No next line.
+        if current_line >= len(lines) - 1:
             return
-        target_col = current_col
-        if target_col > len(lines[target_line]):
-            target_col = len(lines[target_line])
-        position = 0
-        for i in range(target_line):
-            position += len(lines[i]) + 1
-        position += target_col
-        self.set_cursor(position)
+        target_line = current_line + 1
+        target = lines[target_line]
+        target_col = self.preferred_col
+        line_length = target["end"] - target["start"]
+        if target_col > line_length:
+            target_col = line_length
+        self.cursor = target["start"] + target_col
 
     # ========================================================
     # Editing
     # ========================================================
-    def insert_text(self, text):
+    def insert_text(self, value):
         self.text = (
             self.text[:self.cursor]
-            + text
+            + value
             + self.text[self.cursor:]
         )
-        self.cursor += len(text)
+        self.cursor += len(value)
         self.changed = True
-        self.update_cursor_position()
+        self.preferred_col = (
+            self.get_cursor_visual_position()[1]
+        )
 
     def backspace(self):
         if self.cursor <= 0:
@@ -333,7 +411,6 @@ class TextEditor:
         )
         self.cursor -= 1
         self.changed = True
-        self.update_cursor_position()
 
     def delete(self):
         if self.cursor >= len(self.text):
@@ -343,7 +420,6 @@ class TextEditor:
             + self.text[self.cursor + 1:]
         )
         self.changed = True
-        self.update_cursor_position()
 
     def enter(self):
         self.insert_text("\n")
@@ -356,92 +432,69 @@ class TextEditor:
     # ========================================================
     def get_header(self):
         prefix = "~" if self.changed else " "
-        name = self.filename
-        header = prefix + name
-        return pad_right(header, SCREEN_WIDTH)
+        return pad_right(
+            prefix + self.filename,
+            SCREEN_WIDTH
+        )
 
     def get_footer(self):
-        self.update_cursor_position()
-        line = self.cursor_line + 1
-        col = self.cursor_col + 1
+        line, col = self.get_cursor_visual_position()
+        # Display 1-based line and column.
+        line += 1
+        col += 1
         length = len(self.text)
+        current_char = self.get_cursor_char()
         footer = (
             "Ln:" + str(line)
             + " Col:" + str(col)
             + " Len:" + str(length)
-            + " Offset:" + str(self.offset)
+            + " Off:" + str(self.offset)
+            + " Ch:" + current_char
         )
         return pad_right(footer, SCREEN_WIDTH)
 
-    def get_display_lines(self):
-        """
-        Returns exactly six display lines.
-        Lines are wrapped to screen width.
-        """
-        lines = []
-        current = ""
-        for ch in self.text:
-            if ch == "\n":
-                lines.append(current)
-                current = ""
-            else:
-                current += safe_char(ch)
-                if len(current) >= SCREEN_WIDTH:
-                    lines.append(current[:SCREEN_WIDTH])
-                    current = current[SCREEN_WIDTH:]
-
-        lines.append(current)
-        # Ensure at least six lines.
-        while len(lines) < CONTENT_HEIGHT:
-            lines.append("")
-        # Limit to visible area.
-        lines = lines[:CONTENT_HEIGHT]
-        # Horizontal cursor positioning.
-        return lines
-
-    def get_cursor_screen_position(self):
-        """
-        Determine the cursor position on screen.
-        The cursor is represented by '_' and the
-        character at the cursor is placed to its right.
-        """
-        self.update_cursor_position()
-        line = self.cursor_line
-        col = self.cursor_col
-        # Wrap long lines.
-        if col >= SCREEN_WIDTH:
-            extra_lines = col // SCREEN_WIDTH
-            line += extra_lines
-            col = col % SCREEN_WIDTH
-        return col, line
-
     def render(self):
+        lines = self.build_visual_lines()
+        cursor_line, cursor_col = (
+            self.get_cursor_visual_position()
+        )
+        # Header.
         move_cursor(0, HEADER_Y)
-        sys.stdout.write(self.get_header())
-        lines = self.get_display_lines()
+        sys.stdout.write(
+            self.get_header()
+        )
+        # Content.
         for i in range(CONTENT_HEIGHT):
             move_cursor(0, CONTENT_Y + i)
-            line = lines[i]
-            line = pad_right(line, SCREEN_WIDTH)
-            sys.stdout.write(line[:SCREEN_WIDTH])
+            if i < len(lines):
+                line = lines[i]
+                display = ""
+                for ch in line["text"]:
+                    display += safe_char(ch)
+                display = pad_right(
+                    display,
+                    SCREEN_WIDTH
+                )
+                # Cursor replaces the character.
+                if i == cursor_line:
+                    if cursor_col < SCREEN_WIDTH:
+                        display = (
+                            display[:cursor_col]
+                            + "_"
+                            + display[cursor_col + 1:]
+                        )
+                sys.stdout.write(
+                    display[:SCREEN_WIDTH]
+                )
+            else:
+                sys.stdout.write(
+                    " " * SCREEN_WIDTH
+                )
+        # Footer.
         move_cursor(0, FOOTER_Y)
-        sys.stdout.write(self.get_footer())
-        # Draw cursor indicator.
-        x, y = self.get_cursor_screen_position()
-        if y < CONTENT_HEIGHT:
-            screen_y = CONTENT_Y + y
-            screen_x = x
-            if screen_x >= SCREEN_WIDTH:
-                screen_x = SCREEN_WIDTH - 1
-            move_cursor(screen_x, screen_y)
-            sys.stdout.write("_")
-        move_cursor(0, FOOTER_Y)
-        sys.stdout.write(self.status)
-        sys.stdout.write(" " * (
-            SCREEN_WIDTH - len(self.status)
-        ))
-        move_cursor(0, FOOTER_Y)
-        sys.stdout.write(self.get_footer())
+        sys.stdout.write(
+            self.get_footer()
+        )
 
     # ========================================================
     # Key handling
@@ -449,28 +502,31 @@ class TextEditor:
     def handle_key(self, key):
         if key is None:
             return True
-        # ----------------------------------------------------
-        # Control keys
-        # ----------------------------------------------------
+        # Exit without saving.
+        if key == "CTRL_Q":
+            return False
+
+        # Save and previous chunk.
         if key == "CTRL_B":
             self.previous_chunk()
             return True
 
+        # Save and next chunk.
         if key == "CTRL_F":
             self.next_chunk()
             return True
 
+        # Reload current chunk.
         if key == "CTRL_L":
             self.reload_chunk()
             return True
 
+        # Save and reload.
         if key == "CTRL_S":
             self.save_and_reload()
             return True
 
-        # ----------------------------------------------------
-        # Navigation
-        # ----------------------------------------------------
+        # Navigation.
         if key == "LEFT":
             self.move_left()
             return True
@@ -487,9 +543,7 @@ class TextEditor:
             self.move_down()
             return True
 
-        # ----------------------------------------------------
-        # Editing
-        # ----------------------------------------------------
+        # Editing.
         if key == "BACKSPACE":
             self.backspace()
             return True
@@ -506,15 +560,11 @@ class TextEditor:
             self.tab()
             return True
 
-        # ----------------------------------------------------
-        # Escape
-        # ----------------------------------------------------
+        # Escape.
         if key == "ESC":
             return False
 
-        # ----------------------------------------------------
-        # Printable characters
-        # ----------------------------------------------------
+        # Printable characters.
         if isinstance(key, str) and len(key) == 1:
             if ord(key) >= 32:
                 self.insert_text(key)
@@ -523,54 +573,7 @@ class TextEditor:
         return True
 
 # ============================================================
-# Arrow key parser
-# ============================================================
-def read_arrow_key():
-    """
-    Parse ANSI escape sequences.
-    Arrow keys:
-        ESC [ A = UP
-        ESC [ B = DOWN
-        ESC [ C = RIGHT
-        ESC [ D = LEFT
-    Delete:
-        ESC [ 3 ~
-    """
-    ch = sys.stdin.read(1)
-    if ch != "[":
-        return "ESC"
-    ch2 = sys.stdin.read(1)
-    if ch2 == "A":
-        return "UP"
-    if ch2 == "B":
-        return "DOWN"
-    if ch2 == "C":
-        return "RIGHT"
-    if ch2 == "D":
-        return "LEFT"
-    if ch2 == "3":
-        ch3 = sys.stdin.read(1)
-        if ch3 == "~":
-            return "DELETE"
-    return "ESC"
-
-def get_key_extended():
-    try:
-        ch = sys.stdin.read(1)
-        if ch == "\x1b":
-            return read_arrow_key()
-        if ch in CTRL_KEYS:
-            return CTRL_KEYS[ch]
-        code = ord(ch)
-        if 1 <= code <= 26:
-            return f"CTRL_{chr(code + 64)}"
-        return ch
-    except Exception as exc:
-        print("get_key error:", exc)
-        return None
-
-# ============================================================
-# Main function
+# Main
 # ============================================================
 def main(filename):
     editor = TextEditor(filename)
@@ -579,17 +582,18 @@ def main(filename):
     try:
         while True:
             editor.render()
-            key = get_key_extended()
+            key = get_key()
             if key is None:
                 continue
-            should_continue = editor.handle_key(key)
-            if not should_continue:
+            if not editor.handle_key(key):
                 break
     except Exception as exc:
-        editor.status = "ERROR"
         move_cursor(0, FOOTER_Y)
         sys.stdout.write(
-            pad_right(str(exc), SCREEN_WIDTH)
+            pad_right(
+                "ERROR: " + str(exc),
+                SCREEN_WIDTH
+            )
         )
     finally:
         show_cursor()

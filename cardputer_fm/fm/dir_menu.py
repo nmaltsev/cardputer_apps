@@ -197,5 +197,7 @@ def dir_menu(path):
             try:
                 storage.umount(path)
                 print("unmounted:", path)
+                break
+                # @TODO goto the parent directory
             except Exception as e:
                 print("unmount error:", e)

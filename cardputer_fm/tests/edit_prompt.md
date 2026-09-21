@@ -1,4 +1,4 @@
-You are a seniour embennded developer, developing a text editor for M5Stack Card puter in CircuitPython.
+You are a seniour embended developer, developing a text editor for M5Stack Card puter in CircuitPython.
 
 Provide the complete file with defined main function that accepts the file name as an argument
 
@@ -10,7 +10,8 @@ The editor must not read the entire file. There must be defined an internal offs
 
 
 ## The UI
-It is expected that screen width will be no more then 40 characters and screen height no more than 8 lines
+It is expected that screen width will be no more then 40 characters and screen height no more than 8 lines.
+The long lines must be wrapped by the screen width. 
 
 ### Header
 It is the first line:
@@ -19,8 +20,8 @@ It is the first line:
 - if the chunk was not changed prefix the name by the space charater
 
 ### Footer
-`Ln:3 Col: 10 Len: 120 Offset: 1024`
-The footer contains the coordiantes of the cursor within chunk (line and column). The current offset in bytes/characters
+`Ch:* Ln:3 Col: 10 Len: 120 Offset: 1024`
+The footer contains the coordiantes of the cursor within chunk (line and column), the current offset in bytes/characters, and the character from the current position
 
 ## Ctrl keys
 
@@ -34,10 +35,15 @@ CTRL_L
 CTRL_S 
 - writes the current chunk to the file. Read the new chunk from the file 
 
+CTRL_Q
+- exit the editor wthout saving  the file
+
+
 ## Navigation within chunk
 1. arrow keys - change the cursor position within a chunk
 2. del, backspace -removes the character close to the cursor
-3. Use `_` to show the current cursor, the character located in the cursor position should be right from the cursor
+3. Use `_` to show the current cursor, the character located in the cursor position should be typed on the footer
+
 
 
 ## Code snippets
