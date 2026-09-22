@@ -685,7 +685,7 @@ class TextEditor:
         )
         return pad_right(
             footer,
-            SCREEN_WIDTH
+            SCREEN_WIDTH - 1
         )
 
     def render(self):
