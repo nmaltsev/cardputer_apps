@@ -1,5 +1,5 @@
 from .utils import pad_line, get_key, clear
-# OLD stable editor
+# DEPRICATED
 
 
 # ---------- KEY PARSER ----------

@@ -1,5 +1,5 @@
 from .utils import pad_line, get_key
-
+# DEPRICATED
 # v2
 def read_key():
     k = get_key()

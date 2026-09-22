@@ -217,7 +217,7 @@ def device_menu():
                 break
             continue
         print("1 mount sd cards")
-        print("2 unmount sd cards")
+        # print("2 unmount sd cards")
         print("3 adjust brightness")
         print("4 set date; 5 sync date; 7 open settings")
 
@@ -261,57 +261,8 @@ def device_menu():
             else:
                 print("invalid slot")
 
-        # ---------- UNMOUNT ----------
         elif key == '2':
-            # TODO move into the directory menu
-            try:
-                import storage
-            except ImportError:
-                print("SD not available: missing storage module")
-                continue
-
-            try:
-                storage.umount('/sd/sd1')
-                print("unmounted:", '/sd/sd1')
-            except Exception as e:
-                print("unmount error:", e)
-
-            # continue
-            # # TODO investigate how to get the mounts
-            # print("Unmount:")
-            # print("0 -> ALL")
-
-            # mounts = list(storage.getmounts())
-
-            # if not mounts:
-            #     print("No mounted filesystems")
-            #     continue
-
-            # i = 0
-            # for m in mounts:
-            #     print(i + 1, ' -> ', m.mount_point)
-
-            # print("Select mount:")
-            # k = get_key()
-
-            # try:
-            #     slot = int(k)
-            # except:
-            #     print("invalid selection (enter a number)")
-            #     continue
-
-            # if slot == 0:
-            #     for m in mounts:
-            #         try:
-            #             storage.umount(m.mount_point)
-            #             print("unmounted:", m.mount_point)
-            #         except Exception as e:
-            #             print("unmount error:", e)
-            # elif slot > 0 and slot <= len(mounts):
-            #     unmount_sd(mounts[slot - 1].mount_point)
-            # else:
-            #     print("invalid selection")
-
+            pass
 
         # ---------- BRIGHTNESS ----------
         elif key == '3':
