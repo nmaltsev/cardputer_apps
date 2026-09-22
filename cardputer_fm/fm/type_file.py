@@ -1,6 +1,6 @@
 from .utils import pad_line, wrap_line, get_key
 from .file_menu import file_menu
-from .editor import main as text_editor
+
 
 
 def read_page(path, offset, page_length, page_width):
@@ -80,7 +80,7 @@ def type_file(path):
 
         print(
             pad_line(
-                "f q,m,ezw p=" + str(page),
+                "f q,m,e p=" + str(page),
                 width=page_width
             ),
             end=''
@@ -99,6 +99,7 @@ def type_file(path):
                 page -= 1
 
         elif key == 'e':
+            from .editor import main as text_editor
             text_editor(path)
 
         else:
