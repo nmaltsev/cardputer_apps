@@ -1,5 +1,6 @@
 import os
 import time
+import sys
 
 from .utils import pad_line, get_key
 
@@ -54,6 +55,59 @@ def copy_file(src, dst):
                 fdst.write(chunk)
 
 
+def execute_script(path):
+    """
+    Execute a Python script directly from its file contents.
+
+    The script is not imported as a module, so editing the file and
+    executing it again will always use the current contents.
+    """
+    try:
+        with open(path, "r") as f:
+            source = f.read()
+
+        # Compile first so syntax errors are reported before execution.
+        code = compile(source, path, "exec")
+
+        # Give the executed script a normal script-like environment.
+        namespace = {
+            "__name__": "__main__",
+            "__file__": path,
+            "__package__": None,
+            "__cached__": None,
+        }
+
+        # Make sure the directory containing the script is available
+        # for imports performed by the script.
+        script_dir = "/".join(path.rstrip("/").split("/")[:-1])
+
+        if script_dir == "":
+            script_dir = "/"
+
+        old_path = sys.path
+
+        if script_dir not in sys.path:
+            sys.path = [script_dir] + list(sys.path)
+
+        try:
+            exec(code, namespace, namespace)
+        except SystemExit as e:
+            # Allow scripts to use exit() / sys.exit() without
+            # terminating the file manager.
+            print("script exited:", e)
+        finally:
+            sys.path = old_path
+
+        print()
+        print("script finished")
+
+    except Exception as e:
+        print()
+        print("script error:", e)
+
+    input("Press any key")
+
+
 # ---------- FILE MENU ----------
 def file_menu(path):
     try:
@@ -76,8 +130,8 @@ def file_menu(path):
         print(pad_line(f"M: {mtime}"))
 
         print("1 rename")
-        print("2 append line")
-        print("3 delete last line")
+        print("2 execute")
+        print("3 <TODO>")
         print("4 remove file | 5 copy file")
         print(pad_line("> 1-5 q"))
 
@@ -105,33 +159,26 @@ def file_menu(path):
 
         # ---------- APPEND LINE ----------
         elif key == '2':
-            line = input("append: ")
-            if line:
-                try:
-                    with open(path, "a") as f:
-                        f.write(line + "\n")
-                    print("appended")
-                except Exception as e:
-                    print("error:", e)
+            execute_script(path)
 
-        # ---------- DELETE LAST LINE ----------
         elif key == '3':
-            try:
-                with open(path, "r") as f:
-                    lines = f.readlines()
+            # DEPRECATED
+            # try:
+            #     with open(path, "r") as f:
+            #         lines = f.readlines()
 
-                if not lines:
-                    print("empty file")
-                    continue
+            #     if not lines:
+            #         print("empty file")
+            #         continue
 
-                lines = lines[:-1]
+            #     lines = lines[:-1]
 
-                with open(path, "w") as f:
-                    f.writelines(lines)
+            #     with open(path, "w") as f:
+            #         f.writelines(lines)
 
-                print("last line removed")
-            except Exception as e:
-                print("error:", e)
+            #     print("last line removed")
+            # except Exception as e:
+            #     print("error:", e)
 
         # ---------- REMOVE ----------
         elif key == '4':

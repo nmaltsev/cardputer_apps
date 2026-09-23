@@ -2,7 +2,6 @@ from .utils import pad_line, wrap_line, get_key
 from .file_menu import file_menu
 
 
-
 def read_page(path, offset, page_length, page_width):
     """Read one display page starting at offset.
 
@@ -19,7 +18,6 @@ def read_page(path, offset, page_length, page_width):
             line = f.readline()
 
             if not line:
-                # End of file.
                 return lines, f.tell()
 
             line = line.rstrip("\n")
@@ -31,10 +29,7 @@ def read_page(path, offset, page_length, page_width):
 
                 lines.append(part)
 
-            # Remember where the next logical line starts.
-            next_offset = f.tell()
-
-    return lines, next_offset
+    return lines, f.tell()
 
 
 # ---------- TYPE FUNCTION ----------
@@ -63,18 +58,12 @@ def type_file(path):
             page_width
         )
 
-        if not lines:
-            print("<END>")
-            break
-
-        chunk = lines
-
         print()
         print(pad_line("b {}".format(path), width=page_width))
 
         for i in range(page_length):
-            if i < len(chunk):
-                print("{} {}".format(i, chunk[i]))
+            if i < len(lines):
+                print("{} {}".format(i, lines[i]))
             else:
                 print()  # empty line
 
@@ -103,6 +92,7 @@ def type_file(path):
             text_editor(path)
 
         else:
+            # There is another page only if the current page was full.
             if len(lines) == page_length:
                 page_offsets.append(next_offset)
                 page += 1
